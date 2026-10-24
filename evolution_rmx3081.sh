@@ -99,6 +99,8 @@ echo "=============================="
 echo " Syncing source..."
 echo "=============================="
 
+# Clean previous patches and dirty state
+curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/clean.py | python3
 
 /opt/crave/resync.sh
 
@@ -107,7 +109,10 @@ echo " Sync complete"
 echo "=============================="
 
 # ============================================================
+# Apply Upstream Fixes
+# ============================================================
 
+curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/patch.py | python3
 
 # ============================================================
 # Build environment
