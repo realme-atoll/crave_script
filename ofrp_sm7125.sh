@@ -20,8 +20,8 @@ RECOVERY_NAME="OrangeFox Recovery Project"
 RECOVERY_MANIFEST_URL="https://gitlab.com/OrangeFox/Manifest.git"
 RECOVERY_MANIFEST_BRANCH="fox_16.0"
 
-DEVICE_TREE_URL="https://github.com/realme-atoll/android_device_realme_sm7125-OFRP"
-DEVICE_TREE_BRANCH="aosp-16"
+DEVICE_MANIFEST_URL="https://github.com/realme-atoll/sm7125-manifest"
+DEVICE_MANIFEST_BRANCH="fox_16.0"
 
 DEVICE="sm7125"
 LUNCH_TARGET="twrp_${DEVICE}-eng"
@@ -69,15 +69,11 @@ echo " Setting up device manifest..."
 echo "=============================="
 
 rm -rf .repo/local_manifests
-mkdir -p .repo/local_manifests
 
-cat <<EOF > .repo/local_manifests/${DEVICE}.xml
-<?xml version="1.0" encoding="UTF-8"?>
-<manifest>
-  <remote name="gh-of" fetch="https://github.com" />
-  <project path="device/realme/${DEVICE}" name="realme-atoll/android_device_realme_${DEVICE}-OFRP" remote="gh-of" revision="${DEVICE_TREE_BRANCH}" />
-</manifest>
-EOF
+git clone \
+    -b "$DEVICE_MANIFEST_BRANCH" \
+    "$DEVICE_MANIFEST_URL" \
+    .repo/local_manifests
 
 echo "=============================="
 echo " Device manifest ready"
@@ -95,12 +91,6 @@ if [ -f "/opt/crave/resync.sh" ]; then
     /opt/crave/resync.sh
 else
     repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
-fi
-
-# Ensure device tree is present and up to date
-if [ ! -d "device/realme/${DEVICE}" ]; then
-    echo "Cloning device tree directly..."
-    git clone -b "$DEVICE_TREE_BRANCH" "$DEVICE_TREE_URL" "device/realme/${DEVICE}"
 fi
 
 echo "=============================="

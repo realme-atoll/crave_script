@@ -153,19 +153,15 @@ cd "$OFRP_DIR"
 
 repo init -u "https://gitlab.com/OrangeFox/Manifest.git" -b "fox_16.0" --depth=1
 
+rm -rf .repo/local_manifests
+git clone -b fox_16.0 https://github.com/realme-atoll/sm7125-manifest .repo/local_manifests
+
 if [ -f "/opt/crave/resync.sh" ]; then
     /opt/crave/resync.sh
 else
     repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 fi
 cd "$OFRP_DIR"
-
-mkdir -p device/realme
-if [ ! -d "device/realme/sm7125" ]; then
-    git clone -b aosp-16 https://github.com/realme-atoll/android_device_realme_sm7125-OFRP device/realme/sm7125
-else
-    (cd device/realme/sm7125 && git fetch && git checkout aosp-16 && git pull || true)
-fi
 
 export ALLOW_MISSING_DEPENDENCIES=true
 export FOX_BUILD_DEVICE="sm7125"
