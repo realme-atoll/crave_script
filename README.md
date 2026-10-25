@@ -34,6 +34,11 @@ crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-a
 crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/ofrp_sm7125.sh | bash"
 ```
 
+### 5. TeamWin Recovery Project (TWRP) (Unified `sm7125`)
+```bash
+crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/twrp_sm7125.sh | bash"
+```
+
 ---
 
 ## Maintenance & Patch Helpers
