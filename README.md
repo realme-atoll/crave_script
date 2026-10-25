@@ -2,6 +2,16 @@
 
 Automated build scripts for compiling custom ROMs and recoveries on [Crave.io](https://crave.io).
 
+## Full Suite (All Devices + Recovery in a Single Queue Run)
+
+Builds ROMs for Realme 7 Pro, 6 Pro & 8 Pro sequentially in the same Crave job, sharing compiled objects to save build time, followed by the unified OrangeFox Recovery (`sm7125`):
+
+```bash
+crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/evolution_all.sh | bash"
+```
+
+---
+
 ## Individual Build Scripts
 
 ### 1. Realme 7 Pro (`RMX2170`)
