@@ -20,8 +20,8 @@ RECOVERY_NAME="OrangeFox Recovery Project"
 RECOVERY_MANIFEST_URL="https://gitlab.com/OrangeFox/Manifest.git"
 RECOVERY_MANIFEST_BRANCH="fox_16.0"
 
-DEVICE_MANIFEST_URL="https://github.com/realme-atoll/sm7125-manifest"
-DEVICE_MANIFEST_BRANCH="fox_16.0"
+DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
+DEVICE_MANIFEST_BRANCH="ofrp"
 
 DEVICE="sm7125"
 LUNCH_TARGET="twrp_${DEVICE}-eng"

@@ -154,7 +154,7 @@ cd "$OFRP_DIR"
 repo init -u "https://gitlab.com/OrangeFox/Manifest.git" -b "fox_16.0" --depth=1
 
 rm -rf .repo/local_manifests
-git clone -b fox_16.0 https://github.com/realme-atoll/sm7125-manifest .repo/local_manifests
+git clone -b ofrp https://github.com/realme-atoll/recovery-manifest .repo/local_manifests
 
 if [ -f "/opt/crave/resync.sh" ]; then
     /opt/crave/resync.sh

@@ -20,8 +20,8 @@ RECOVERY_NAME="TeamWin Recovery Project"
 RECOVERY_MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"
 RECOVERY_MANIFEST_BRANCH="twrp-12.1"
 
-DEVICE_MANIFEST_URL="https://github.com/realme-atoll/sm7125-manifest"
-DEVICE_MANIFEST_BRANCH="twrp-12.1"
+DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
+DEVICE_MANIFEST_BRANCH="twrp"
 
 DEVICE="sm7125"
 LUNCH_TARGET="twrp_${DEVICE}-eng"
@@ -190,3 +190,4 @@ if [ -d "$OUT_DIR" ]; then
     echo "=============================="
     ls -lh "$OUT_DIR"/TWRP* "$OUT_DIR"/twrp* "$OUT_DIR"/recovery.img 2>/dev/null || true
 fi
+
