@@ -3,14 +3,17 @@
 # ============================================================
 # Crave Multi-Device Automated Build Script - Realme SM7125
 # Builds: Realme 7 Pro (RMX2170), Realme 6 Pro (RMX2061),
-#         Realme 8 Pro (RMX3081), & OrangeFox Recovery (sm7125)
+#         Realme 8 Pro (RMX3081)
 # ============================================================
 #
 # Build Order:
 #   1. Realme 7 Pro (RMX2170)
 #   2. Realme 6 Pro (RMX2061)
 #   3. Realme 8 Pro (RMX3081)
-#   4. OrangeFox Recovery Project (sm7125)
+#
+# Note:
+#   If any build fails, the script continues to build the
+#   remaining devices and displays a full summary report at the end.
 #
 # Usage:
 #   Default (userdebug):
@@ -23,7 +26,9 @@
 #
 # ============================================================
 
-set -e
+# Track build results across devices
+SUCCESS_BUILDS=()
+FAILED_BUILDS=()
 
 # ============================================================
 # CONFIGURATION
@@ -57,9 +62,9 @@ repo init \
     -u "$ROM_MANIFEST_URL" \
     -b "$ROM_MANIFEST_BRANCH" \
     --git-lfs \
-    --depth=1
+    --depth=1 || true
 
-echo "Repo initialized successfully."
+echo "Repo initialized."
 
 # Helper function to clean, sync source and apply patches
 sync_source() {
@@ -68,9 +73,9 @@ sync_source() {
     echo "=============================="
     curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/clean.py | python3 || true
     if [ -f "/opt/crave/resync.sh" ]; then
-        /opt/crave/resync.sh
+        /opt/crave/resync.sh || repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
     else
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
     fi
     curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/patch.py | python3 || true
     echo "Source sync and patches complete."
@@ -82,18 +87,31 @@ sync_source() {
 
 echo ""
 echo "============================================================"
-echo " [1/4] Building $ROM_NAME - Realme 7 Pro (RMX2170)"
+echo " [1/3] Building $ROM_NAME - Realme 7 Pro (RMX2170)"
 echo "============================================================"
 
 cd "$ROM_WORK_DIR"
 rm -rf .repo/local_manifests
-git clone -b evox-bka https://github.com/realme-atoll/RMX2170-manifest .repo/local_manifests
-
-sync_source
-
-source build/envsetup.sh
-lunch "lineage_RMX2170-${BUILD_VARIANT}"
-m "$BUILD_TARGET"
+if git clone -b evox-bka https://github.com/realme-atoll/RMX2170-manifest .repo/local_manifests; then
+    sync_source
+    source build/envsetup.sh
+    if lunch "lineage_RMX2170-${BUILD_VARIANT}"; then
+        echo "Starting build: m $BUILD_TARGET for RMX2170..."
+        if m "$BUILD_TARGET"; then
+            echo ">>> [SUCCESS] Realme 7 Pro (RMX2170) build succeeded!"
+            SUCCESS_BUILDS+=("Realme 7 Pro (RMX2170)")
+        else
+            echo ">>> [ERROR] Realme 7 Pro (RMX2170) build compilation failed!"
+            FAILED_BUILDS+=("Realme 7 Pro (RMX2170)")
+        fi
+    else
+        echo ">>> [ERROR] lunch failed for Realme 7 Pro (RMX2170)!"
+        FAILED_BUILDS+=("Realme 7 Pro (RMX2170) [lunch failed]")
+    fi
+else
+    echo ">>> [ERROR] Failed to clone local manifest for Realme 7 Pro (RMX2170)!"
+    FAILED_BUILDS+=("Realme 7 Pro (RMX2170) [manifest clone failed]")
+fi
 
 # ============================================================
 # 2. REALME 6 PRO (RMX2061)
@@ -101,18 +119,31 @@ m "$BUILD_TARGET"
 
 echo ""
 echo "============================================================"
-echo " [2/4] Building $ROM_NAME - Realme 6 Pro (RMX2061)"
+echo " [2/3] Building $ROM_NAME - Realme 6 Pro (RMX2061)"
 echo "============================================================"
 
 cd "$ROM_WORK_DIR"
 rm -rf .repo/local_manifests
-git clone -b evox-bka https://github.com/realme-atoll/RMX2061-manifest .repo/local_manifests
-
-sync_source
-
-source build/envsetup.sh
-lunch "lineage_RMX2061-${BUILD_VARIANT}"
-m "$BUILD_TARGET"
+if git clone -b evox-bka https://github.com/realme-atoll/RMX2061-manifest .repo/local_manifests; then
+    sync_source
+    source build/envsetup.sh
+    if lunch "lineage_RMX2061-${BUILD_VARIANT}"; then
+        echo "Starting build: m $BUILD_TARGET for RMX2061..."
+        if m "$BUILD_TARGET"; then
+            echo ">>> [SUCCESS] Realme 6 Pro (RMX2061) build succeeded!"
+            SUCCESS_BUILDS+=("Realme 6 Pro (RMX2061)")
+        else
+            echo ">>> [ERROR] Realme 6 Pro (RMX2061) build compilation failed!"
+            FAILED_BUILDS+=("Realme 6 Pro (RMX2061)")
+        fi
+    else
+        echo ">>> [ERROR] lunch failed for Realme 6 Pro (RMX2061)!"
+        FAILED_BUILDS+=("Realme 6 Pro (RMX2061) [lunch failed]")
+    fi
+else
+    echo ">>> [ERROR] Failed to clone local manifest for Realme 6 Pro (RMX2061)!"
+    FAILED_BUILDS+=("Realme 6 Pro (RMX2061) [manifest clone failed]")
+fi
 
 # ============================================================
 # 3. REALME 8 PRO (RMX3081)
@@ -120,62 +151,61 @@ m "$BUILD_TARGET"
 
 echo ""
 echo "============================================================"
-echo " [3/4] Building $ROM_NAME - Realme 8 Pro (RMX3081)"
+echo " [3/3] Building $ROM_NAME - Realme 8 Pro (RMX3081)"
 echo "============================================================"
 
 cd "$ROM_WORK_DIR"
 rm -rf .repo/local_manifests
-git clone -b evox-bka https://github.com/realme-atoll/RMX3081-manifest .repo/local_manifests
-
-sync_source
-
-source build/envsetup.sh
-lunch "lineage_RMX3081-${BUILD_VARIANT}"
-m "$BUILD_TARGET"
+if git clone -b evox-bka https://github.com/realme-atoll/RMX3081-manifest .repo/local_manifests; then
+    sync_source
+    source build/envsetup.sh
+    if lunch "lineage_RMX3081-${BUILD_VARIANT}"; then
+        echo "Starting build: m $BUILD_TARGET for RMX3081..."
+        if m "$BUILD_TARGET"; then
+            echo ">>> [SUCCESS] Realme 8 Pro (RMX3081) build succeeded!"
+            SUCCESS_BUILDS+=("Realme 8 Pro (RMX3081)")
+        else
+            echo ">>> [ERROR] Realme 8 Pro (RMX3081) build compilation failed!"
+            FAILED_BUILDS+=("Realme 8 Pro (RMX3081)")
+        fi
+    else
+        echo ">>> [ERROR] lunch failed for Realme 8 Pro (RMX3081)!"
+        FAILED_BUILDS+=("Realme 8 Pro (RMX3081) [lunch failed]")
+    fi
+else
+    echo ">>> [ERROR] Failed to clone local manifest for Realme 8 Pro (RMX3081)!"
+    FAILED_BUILDS+=("Realme 8 Pro (RMX3081) [manifest clone failed]")
+fi
 
 # ============================================================
-# 4. ORANGEFOX RECOVERY PROJECT (sm7125)
+# FINAL SUMMARY REPORT
 # ============================================================
 
 echo ""
 echo "============================================================"
-echo " [4/4] Building OrangeFox Recovery Project (sm7125)"
+echo "                   BUILD SUMMARY REPORT                     "
 echo "============================================================"
 
-if [ -d "/tmp/src" ]; then
-    OFRP_DIR="/tmp/src/ofrp"
+if [ ${#SUCCESS_BUILDS[@]} -gt 0 ]; then
+    echo " Successful Builds (${#SUCCESS_BUILDS[@]}):"
+    for item in "${SUCCESS_BUILDS[@]}"; do
+        echo "   [✓] $item"
+    done
+fi
+
+if [ ${#FAILED_BUILDS[@]} -gt 0 ]; then
+    echo ""
+    echo " Failed Builds (${#FAILED_BUILDS[@]}):"
+    for item in "${FAILED_BUILDS[@]}"; do
+        echo "   [✗] $item"
+    done
+    echo "============================================================"
+    echo " Some builds encountered errors. Check the logs above."
+    echo "============================================================"
+    exit 1
 else
-    OFRP_DIR="${ROM_WORK_DIR}/ofrp"
+    echo ""
+    echo " All builds completed successfully!"
+    echo "============================================================"
+    exit 0
 fi
-
-mkdir -p "$OFRP_DIR"
-cd "$OFRP_DIR"
-
-repo init -u "https://gitlab.com/OrangeFox/Manifest.git" -b "fox_16.0" --depth=1
-
-rm -rf .repo/local_manifests
-git clone -b ofrp https://github.com/realme-atoll/recovery-manifest .repo/local_manifests
-
-if [ -f "/opt/crave/resync.sh" ]; then
-    /opt/crave/resync.sh
-else
-    repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
-fi
-cd "$OFRP_DIR"
-
-export ALLOW_MISSING_DEPENDENCIES=true
-export FOX_BUILD_DEVICE="sm7125"
-export LC_ALL="C.UTF-8"
-
-source build/envsetup.sh
-if [ -f "device/realme/sm7125/vendorsetup.sh" ]; then
-    source "device/realme/sm7125/vendorsetup.sh" "sm7125"
-fi
-
-lunch twrp_sm7125-trunk_staging-eng
-m recoveryimage
-
-echo ""
-echo "============================================================"
-echo " All builds completed successfully!"
-echo "============================================================"
