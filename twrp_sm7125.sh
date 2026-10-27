@@ -18,13 +18,13 @@ set -e
 RECOVERY_NAME="TeamWin Recovery Project"
 
 RECOVERY_MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"
-RECOVERY_MANIFEST_BRANCH="twrp-12.1"
+RECOVERY_MANIFEST_BRANCH="twrp-14.1"
 
 DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
 DEVICE_MANIFEST_BRANCH="twrp"
 
 DEVICE="sm7125"
-LUNCH_TARGET="twrp_${DEVICE}-eng"
+LUNCH_TARGET="twrp_${DEVICE}-trunk_staging-eng"
 BUILD_TARGET="recoveryimage"
 
 SOURCE_DIR="/tmp/src/android"

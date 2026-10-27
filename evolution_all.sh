@@ -172,7 +172,7 @@ if [ -f "device/realme/sm7125/vendorsetup.sh" ]; then
     source "device/realme/sm7125/vendorsetup.sh" "sm7125"
 fi
 
-lunch twrp_sm7125-eng
+lunch twrp_sm7125-trunk_staging-eng
 m recoveryimage
 
 echo ""

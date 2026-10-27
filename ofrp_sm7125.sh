@@ -24,7 +24,7 @@ DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
 DEVICE_MANIFEST_BRANCH="ofrp"
 
 DEVICE="sm7125"
-LUNCH_TARGET="twrp_${DEVICE}-eng"
+LUNCH_TARGET="twrp_${DEVICE}-trunk_staging-eng"
 BUILD_TARGET="recoveryimage"
 
 SOURCE_DIR="/tmp/src/android"
