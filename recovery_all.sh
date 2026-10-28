@@ -1,170 +1,166 @@
 #!/bin/bash
+# =============================================================================
+# Multi-Recovery Batch Build - Realme Atoll (sm7125)
+# Recoveries: OrangeFox Recovery Project & TeamWin Recovery Project (TWRP)
+#
+# Examples:
+#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
+#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
+# =============================================================================
 
-# ============================================================
-# Crave Automated Build Script - All Recoveries (Realme SM7125)
-# Builds:
-#   1. OrangeFox Recovery Project - OFRP (sm7125)
-#   2. TeamWin Recovery Project - TWRP (sm7125)
-# ============================================================
-#
-# Note:
-#   If any build fails, the script continues to build the
-#   remaining recovery and displays a full summary report at the end.
-#
-# Usage:
-#   crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/recovery_all.sh | bash"
-#
-# ============================================================
+# Enable pipefail so pipeline failure (m ... | tee) is accurately detected
+# Note: set -e is deliberately omitted so a failure on one recovery does not abort remaining builds
+set -o pipefail
+
+# =============================================================================
+# CONFIGURATION - MODIFY ONLY THIS SECTION
+# =============================================================================
+
+# Target Device & Shared Recovery Manifest
+DEVICE="sm7125"
+RECOVERY_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
+
+# OrangeFox Configuration
+OFRP_MANIFEST_URL="https://gitlab.com/orangefox/manifest.git"
+OFRP_MANIFEST_BRANCH="fox_12.1"
+OFRP_DEVICE_BRANCH="ofrp"
+OFRP_LUNCH_TARGET="tw_${DEVICE}-eng"
+
+# TWRP Configuration
+TWRP_MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"
+TWRP_MANIFEST_BRANCH="twrp-14.1"
+TWRP_DEVICE_BRANCH="twrp"
+TWRP_LUNCH_TARGET="twrp_${DEVICE}-trunk_staging-eng"
+
+# Workspace & Cloud Upload (Uses Crave's stock cached directory)
+WORK_DIR="/tmp/src/android"
+UPLOAD_SUBDIR_BASE="Recovery/${DEVICE}"
+
+# Helper Scripts URLs
+SCRIPT_BRANCH="${SCRIPT_BRANCH:-aosp-16}"
+UPLOAD_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/upload.py"
+
+# =============================================================================
+# SCRIPT LOGIC - DO NOT MODIFY BELOW THIS LINE
+# =============================================================================
 
 SUCCESS_BUILDS=()
 FAILED_BUILDS=()
 
-BASE_DIR="/tmp/src"
-if [ ! -d "$BASE_DIR" ]; then
-    BASE_DIR="$(pwd)"
+# Setup workspace
+if [ -d "$WORK_DIR" ]; then
+    cd "$WORK_DIR"
+else
+    WORK_DIR="$(pwd)"
 fi
 
-# ============================================================
-# 1. ORANGEFOX RECOVERY PROJECT (sm7125)
-# ============================================================
-
-echo ""
 echo "============================================================"
-echo " [1/2] Building OrangeFox Recovery Project (sm7125)"
+echo " Starting Multi-Recovery Batch Build for Realme Atoll ($DEVICE)"
+echo " Workspace: $WORK_DIR"
 echo "============================================================"
 
-OFRP_DIR="${BASE_DIR}/ofrp"
-mkdir -p "$OFRP_DIR"
-cd "$OFRP_DIR"
+# Helper: Build single recovery
+build_recovery() {
+    local name="$1"                     # "OrangeFox" or "TWRP"
+    local manifest_url="$2"
+    local manifest_branch="$3"
+    local device_manifest_url="$4"
+    local device_manifest_branch="$5"
+    local lunch_target="$6"
 
-echo "Initializing OrangeFox repo..."
-repo init \
-    -u "https://gitlab.com/OrangeFox/Manifest.git" \
-    -b "fox_16.0" \
-    --depth=1 || true
+    echo ""
+    echo "============================================================"
+    echo ">>> Starting Build for $name Recovery ($DEVICE)..."
+    echo "============================================================"
 
-rm -rf .repo/local_manifests
-if git clone -b ofrp https://github.com/realme-atoll/recovery-manifest .repo/local_manifests; then
-    echo "Syncing source..."
-    if [ -f "/opt/crave/resync.sh" ]; then
-        /opt/crave/resync.sh || repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
-    else
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
-    fi
-    cd "$OFRP_DIR"
+    cd "$WORK_DIR"
+    
+    # 1. Initialize repo
+    echo ""
+    echo "=============================="
+    echo " [$name] Initializing repo ($manifest_branch)..."
+    echo "=============================="
+    repo init -u "$manifest_url" -b "$manifest_branch" --depth=1 || true
 
-    export ALLOW_MISSING_DEPENDENCIES=true
-    export FOX_BUILD_DEVICE="sm7125"
-    export LC_ALL="C.UTF-8"
+    # 2. Setup device manifest
+    echo ""
+    echo "=============================="
+    echo " [$name] Setting up device manifest..."
+    echo "=============================="
+    rm -rf .repo/local_manifests
+    if git clone -b "$device_manifest_branch" "$device_manifest_url" .repo/local_manifests; then
+        
+        # 3. Sync source via Crave resync
+        echo ""
+        echo "=============================="
+        echo " [$name] Syncing source via crave resync..."
+        echo "=============================="
+        /opt/crave/resync.sh || true
 
-    source build/envsetup.sh
-    if [ -f "device/realme/sm7125/vendorsetup.sh" ]; then
-        source "device/realme/sm7125/vendorsetup.sh" "sm7125"
-    fi
-
-    if lunch twrp_sm7125-trunk_staging-eng; then
-        echo "Starting build: m recoveryimage for OrangeFox sm7125..."
-        if m recoveryimage; then
-            echo ">>> [SUCCESS] OrangeFox Recovery (sm7125) build succeeded!"
-            SUCCESS_BUILDS+=("OrangeFox Recovery (sm7125)")
+        # 4. Setup build environment and lunch
+        echo ""
+        echo "=============================="
+        echo " [$name] Setting up environment & lunching $lunch_target..."
+        echo "=============================="
+        export ALLOW_MISSING_DEPENDENCIES=true
+        export LC_ALL="C.UTF-8"
+        if [ "$name" = "OrangeFox" ]; then
+            export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1
         else
-            echo ">>> [ERROR] OrangeFox Recovery (sm7125) build compilation failed!"
-            FAILED_BUILDS+=("OrangeFox Recovery (sm7125)")
+            export TW_DEVICE_VERSION="12.1"
+        fi
+
+        source build/envsetup.sh
+        [ -f "device/realme/${DEVICE}/vendorsetup.sh" ] && source "device/realme/${DEVICE}/vendorsetup.sh" "${DEVICE}"
+
+        if lunch "$lunch_target"; then
+            
+            # 5. Compile recovery
+            echo ""
+            echo "=============================="
+            echo " [$name] Compiling recovery ($lunch_target)..."
+            echo "=============================="
+            if m recoveryimage 2>&1 | tee "/tmp/build_${name}.log"; then
+                echo ">>> [SUCCESS] $name Recovery build succeeded!"
+                SUCCESS_BUILDS+=("$name")
+
+                # 6. Prepare branded image and upload
+                echo ""
+                echo "=============================="
+                echo " [$name] Uploading recovery artifacts..."
+                echo "=============================="
+                local out_dir="${WORK_DIR}/out/target/product/${DEVICE}"
+                [ -f "$out_dir/recovery.img" ] && cp -v "$out_dir/recovery.img" "$out_dir/${name}-realme-${DEVICE}.img"
+                local cooked_files=($(ls -t "$out_dir"/${name}*.img "$out_dir"/${name}*.zip "$out_dir"/${name,,}*.zip 2>/dev/null | head -n 2))
+                curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR_BASE}/${name}" "${cooked_files[@]}" || true
+            else
+                echo ">>> [FAILED] $name Recovery compilation failed!"
+                FAILED_BUILDS+=("$name")
+            fi
+        else
+            echo ">>> [FAILED] $name lunch failed!"
+            FAILED_BUILDS+=("$name [lunch failed]")
         fi
     else
-        echo ">>> [ERROR] lunch failed for OrangeFox Recovery (sm7125)!"
-        FAILED_BUILDS+=("OrangeFox Recovery (sm7125) [lunch failed]")
+        echo ">>> [FAILED] $name local manifest clone failed!"
+        FAILED_BUILDS+=("$name [manifest clone failed]")
     fi
-else
-    echo ">>> [ERROR] Failed to clone local manifest for OrangeFox Recovery!"
-    FAILED_BUILDS+=("OrangeFox Recovery (sm7125) [manifest clone failed]")
-fi
+}
 
-# ============================================================
-# 2. TEAMWIN RECOVERY PROJECT - TWRP (sm7125)
-# ============================================================
+# Build both recoveries sequentially
+build_recovery "OrangeFox" "$OFRP_MANIFEST_URL" "$OFRP_MANIFEST_BRANCH" "$RECOVERY_MANIFEST_URL" "$OFRP_DEVICE_BRANCH" "$OFRP_LUNCH_TARGET"
+build_recovery "TWRP" "$TWRP_MANIFEST_URL" "$TWRP_MANIFEST_BRANCH" "$RECOVERY_MANIFEST_URL" "$TWRP_DEVICE_BRANCH" "$TWRP_LUNCH_TARGET"
 
-echo ""
-echo "============================================================"
-echo " [2/2] Building TeamWin Recovery Project - TWRP (sm7125)"
-echo "============================================================"
-
-TWRP_DIR="${BASE_DIR}/twrp"
-mkdir -p "$TWRP_DIR"
-cd "$TWRP_DIR"
-
-echo "Initializing TWRP repo..."
-repo init \
-    -u "https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git" \
-    -b "twrp-14.1" \
-    --depth=1 || true
-
-rm -rf .repo/local_manifests
-if git clone -b twrp https://github.com/realme-atoll/recovery-manifest .repo/local_manifests; then
-    echo "Syncing source..."
-    if [ -f "/opt/crave/resync.sh" ]; then
-        /opt/crave/resync.sh || repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
-    else
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
-    fi
-    cd "$TWRP_DIR"
-
-    export ALLOW_MISSING_DEPENDENCIES=true
-    export TW_DEVICE_VERSION="12.1"
-    export LC_ALL="C.UTF-8"
-
-    source build/envsetup.sh
-    if [ -f "device/realme/sm7125/vendorsetup.sh" ]; then
-        source "device/realme/sm7125/vendorsetup.sh" "sm7125"
-    fi
-
-    if lunch twrp_sm7125-trunk_staging-eng; then
-        echo "Starting build: m recoveryimage for TWRP sm7125..."
-        if m recoveryimage; then
-            echo ">>> [SUCCESS] TWRP (sm7125) build succeeded!"
-            SUCCESS_BUILDS+=("TWRP Recovery (sm7125)")
-        else
-            echo ">>> [ERROR] TWRP (sm7125) build compilation failed!"
-            FAILED_BUILDS+=("TWRP Recovery (sm7125)")
-        fi
-    else
-        echo ">>> [ERROR] lunch failed for TWRP (sm7125)!"
-        FAILED_BUILDS+=("TWRP Recovery (sm7125) [lunch failed]")
-    fi
-else
-    echo ">>> [ERROR] Failed to clone local manifest for TWRP Recovery!"
-    FAILED_BUILDS+=("TWRP Recovery (sm7125) [manifest clone failed]")
-fi
-
-# ============================================================
-# FINAL SUMMARY REPORT
-# ============================================================
-
+# Final Summary Report
 echo ""
 echo "============================================================"
 echo "                   BUILD SUMMARY REPORT                     "
 echo "============================================================"
-
-if [ ${#SUCCESS_BUILDS[@]} -gt 0 ]; then
-    echo " Successful Builds (${#SUCCESS_BUILDS[@]}):"
-    for item in "${SUCCESS_BUILDS[@]}"; do
-        echo "   [✓] $item"
-    done
-fi
+[ ${#SUCCESS_BUILDS[@]} -gt 0 ] && echo " Successful Builds: ${SUCCESS_BUILDS[*]}"
+[ ${#FAILED_BUILDS[@]} -gt 0 ] && echo " Failed Builds:     ${FAILED_BUILDS[*]}"
+echo "============================================================"
 
 if [ ${#FAILED_BUILDS[@]} -gt 0 ]; then
-    echo ""
-    echo " Failed Builds (${#FAILED_BUILDS[@]}):"
-    for item in "${FAILED_BUILDS[@]}"; do
-        echo "   [✗] $item"
-    done
-    echo "============================================================"
-    echo " Some builds encountered errors. Check the logs above."
-    echo "============================================================"
     exit 1
-else
-    echo ""
-    echo " All recovery builds completed successfully!"
-    echo "============================================================"
-    exit 0
 fi
+exit 0

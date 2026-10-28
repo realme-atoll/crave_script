@@ -1,193 +1,104 @@
 #!/bin/bash
-
-# ============================================================
-# TeamWin Recovery Project (TWRP) - sm7125 (Realme 6 Pro, 7 Pro & 8 Pro)
-# ============================================================
+# =============================================================================
+# TeamWin Recovery Project (TWRP) - Realme Atoll (sm7125)
+# Unified: Realme 6 Pro (RMX2061), Realme 7 Pro (RMX2170), Realme 8 Pro (RMX3081)
 #
-# Usage:
-#   crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/twrp_sm7125.sh | bash"
-#
-# ============================================================
+# Examples:
+#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
+#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
+# =============================================================================
 
-set -e
+set -e -o pipefail
 
-# ============================================================
-# CONFIG - CHANGE ONLY THESE VALUES FOR A DIFFERENT RECOVERY/DEVICE
-# ============================================================
+# =============================================================================
+# CONFIGURATION - MODIFY ONLY THIS SECTION
+# =============================================================================
 
-RECOVERY_NAME="TeamWin Recovery Project"
-
-RECOVERY_MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"
-RECOVERY_MANIFEST_BRANCH="twrp-14.1"
-
+# Device & Recovery Settings
+DEVICE="sm7125"
+RECOVERY_NAME="TWRP"
+MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"
+MANIFEST_BRANCH="twrp-14.1"
 DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
 DEVICE_MANIFEST_BRANCH="twrp"
 
-DEVICE="sm7125"
-LUNCH_TARGET="twrp_${DEVICE}-trunk_staging-eng"
+# Build Settings
 BUILD_TARGET="recoveryimage"
+LUNCH_TARGET="twrp_${DEVICE}-trunk_staging-eng"
+WORK_DIR="/tmp/src/android"
 
-SOURCE_DIR="/tmp/src/android"
+# Cloud Upload Destination
+UPLOAD_SUBDIR="Recovery/${DEVICE}/TWRP"
 
-# ============================================================
-# DO NOT MODIFY BELOW THIS LINE
-# ============================================================
+# Helper Scripts URLs
+SCRIPT_BRANCH="${SCRIPT_BRANCH:-aosp-16}"
+UPLOAD_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/upload.py"
 
-echo "=============================="
-echo " $RECOVERY_NAME Build - $DEVICE ($LUNCH_TARGET)"
-echo "=============================="
+# =============================================================================
+# SCRIPT LOGIC - DO NOT MODIFY BELOW THIS LINE
+# =============================================================================
 
-# Use SOURCE_DIR only if it exists, otherwise build in current workspace
-if [ -d "$SOURCE_DIR" ]; then
-    cd "$SOURCE_DIR"
+# Workspace Setup (Uses Crave's stock cached directory)
+if [ -d "$WORK_DIR" ]; then
+    cd "$WORK_DIR"
 fi
-echo "Working directory: $(pwd)"
+echo "============================================================"
+echo " Building $RECOVERY_NAME for $DEVICE"
+echo " Working Directory: $(pwd)"
+echo "============================================================"
 
-# ============================================================
-# Initialize Recovery repo
-# ============================================================
-
+# 1. Initialize repo
+echo ""
 echo "=============================="
-echo " Initializing $RECOVERY_NAME ($RECOVERY_MANIFEST_BRANCH)..."
+echo " [1/5] Initializing $RECOVERY_NAME repo ($MANIFEST_BRANCH)..."
 echo "=============================="
+repo init -u "$MANIFEST_URL" -b "$MANIFEST_BRANCH" --depth=1
 
-repo init \
-    -u "$RECOVERY_MANIFEST_URL" \
-    -b "$RECOVERY_MANIFEST_BRANCH" \
-    --depth=1
-
+# 2. Setup device manifest
+echo ""
 echo "=============================="
-echo " Repo initialized"
+echo " [2/5] Setting up device manifest..."
 echo "=============================="
-
-# ============================================================
-# Setup device local manifest
-# ============================================================
-
-echo "=============================="
-echo " Setting up device manifest..."
-echo "=============================="
-
 rm -rf .repo/local_manifests
+git clone -b "$DEVICE_MANIFEST_BRANCH" "$DEVICE_MANIFEST_URL" .repo/local_manifests
 
-git clone \
-    -b "$DEVICE_MANIFEST_BRANCH" \
-    "$DEVICE_MANIFEST_URL" \
-    .repo/local_manifests
-
+# 3. Sync source
+echo ""
 echo "=============================="
-echo " Device manifest ready"
+echo " [3/5] Syncing source via crave resync..."
 echo "=============================="
+/opt/crave/resync.sh
 
-# ============================================================
-# Sync source
-# ============================================================
-
+# 4. Setup build environment and lunch
+echo ""
 echo "=============================="
-echo " Syncing source..."
+echo " [4/5] Setting up environment & lunching $LUNCH_TARGET..."
 echo "=============================="
-
-if [ -f "/opt/crave/resync.sh" ]; then
-    /opt/crave/resync.sh
-else
-    repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
-fi
-
-echo "=============================="
-echo " Sync complete"
-echo "=============================="
-
-# ============================================================
-# Build environment
-# ============================================================
-
-echo "=============================="
-echo " Setting up build environment..."
-echo "=============================="
-
 export ALLOW_MISSING_DEPENDENCIES=true
 export TW_DEVICE_VERSION="12.1"
 export LC_ALL="C.UTF-8"
-
 source build/envsetup.sh
-
-# Source device-specific vendor setup if available
-if [ -f "device/realme/${DEVICE}/vendorsetup.sh" ]; then
-    source "device/realme/${DEVICE}/vendorsetup.sh" "$DEVICE"
-fi
-
-echo "=============================="
-echo " Envsetup complete"
-echo "=============================="
-
-# ============================================================
-# Lunch target
-# ============================================================
-
-echo "=============================="
-echo " Running lunch $LUNCH_TARGET..."
-echo "=============================="
-
+[ -f "device/realme/${DEVICE}/vendorsetup.sh" ] && source "device/realme/${DEVICE}/vendorsetup.sh" "${DEVICE}"
 lunch "$LUNCH_TARGET"
 
+# 5. Compile recovery
+echo ""
 echo "=============================="
-echo " Lunch complete"
+echo " [5/5] Compiling $RECOVERY_NAME ($BUILD_TARGET)..."
 echo "=============================="
+m "$BUILD_TARGET" 2>&1 | tee /tmp/build_${DEVICE}.log
 
-# ============================================================
-# Build
-# ============================================================
-
+# 6. Prepare branded image & upload
+echo ""
 echo "=============================="
-echo " Building $RECOVERY_NAME ($BUILD_TARGET)..."
+echo " Uploading recovery artifacts..."
 echo "=============================="
-
-m "$BUILD_TARGET"
-
-echo "=============================="
-echo " Build complete successfully"
-echo "=============================="
-
-# ============================================================
-# Post-Build Artifacts
-# ============================================================
-
 OUT_DIR="out/target/product/${DEVICE}"
-if [ -d "$OUT_DIR" ]; then
-    echo "=============================="
-    echo " Processing build artifacts..."
-    echo "=============================="
+[ -f "$OUT_DIR/recovery.img" ] && cp -v "$OUT_DIR/recovery.img" "$OUT_DIR/TWRP-realme-${DEVICE}.img"
+COOKED_FILES=($(ls -t "$OUT_DIR"/TWRP*.img "$OUT_DIR"/TWRP*.zip "$OUT_DIR"/twrp*.zip 2>/dev/null | head -n 2))
+curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${COOKED_FILES[@]}"
 
-    # Find generated recovery image
-    if [ -f "$OUT_DIR/recovery.img" ]; then
-        cp -v "$OUT_DIR/recovery.img" "$OUT_DIR/TWRP-realme-${DEVICE}.img"
-    fi
-
-    # Find generated TWRP zip (if any)
-    TWRP_ZIP=$(find "$OUT_DIR" -maxdepth 1 \( -name "twrp*.zip" -o -name "TWRP*.zip" \) | head -n 1)
-
-    if [ -n "$TWRP_ZIP" ] && [ -f "$TWRP_ZIP" ]; then
-        ZIP_BASENAME=$(basename "$TWRP_ZIP" .zip)
-
-        # Ensure "realme" is included in the name
-        if [[ "$ZIP_BASENAME" =~ "realme" ]]; then
-            TARGET_BASE="$ZIP_BASENAME"
-        else
-            if [[ "$ZIP_BASENAME" =~ "${DEVICE}" ]]; then
-                TARGET_BASE="${ZIP_BASENAME//${DEVICE}/realme-${DEVICE}}"
-            else
-                TARGET_BASE="${ZIP_BASENAME}-realme-${DEVICE}"
-            fi
-        fi
-
-        if [ "$TWRP_ZIP" != "$OUT_DIR/${TARGET_BASE}.zip" ]; then
-            cp -v "$TWRP_ZIP" "$OUT_DIR/${TARGET_BASE}.zip"
-        fi
-    fi
-
-    echo "=============================="
-    echo " Final Artifacts:"
-    echo "=============================="
-    ls -lh "$OUT_DIR"/TWRP* "$OUT_DIR"/twrp* "$OUT_DIR"/recovery.img 2>/dev/null || true
-fi
-
+echo ""
+echo "============================================================"
+echo " $RECOVERY_NAME build process completed successfully!"
+echo "============================================================"

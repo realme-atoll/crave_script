@@ -1,157 +1,102 @@
 #!/bin/bash
-
-# ============================================================
-# Android 16 - RMX2170 (Realme 7 Pro)
-# ============================================================
+# =============================================================================
+# Evolution X (Android 16) - Realme 7 Pro (RMX2170)
 #
-# Usage:
-#   Default (userdebug):
-#     crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/evolution_rmx2170.sh | bash"
-#
-#   Custom build variant (e.g. user, userdebug, eng):
-#     crave -n run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/evolution_rmx2170.sh | bash -s -- user"
-#     OR
-#     crave -n run --no-patch -- "BUILD_VARIANT=user curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/evolution_rmx2170.sh | bash"
-#
-# ============================================================
+# Examples:
+#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2170.sh | bash"
+#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2170.sh | bash"
+# =============================================================================
 
-set -e
+set -e -o pipefail
 
-# ============================================================
-# CONFIG - CHANGE ONLY THESE VALUES FOR A DIFFERENT ROM
-# ============================================================
+# =============================================================================
+# CONFIGURATION - MODIFY ONLY THIS SECTION
+# =============================================================================
 
-ROM_NAME="Android 16"
-
+# Device & ROM Settings
+DEVICE="RMX2170"
+ROM_NAME="Evolution X"
 ROM_MANIFEST_URL="https://github.com/Evolution-X/manifest"
 ROM_MANIFEST_BRANCH="bka"
-
 DEVICE_MANIFEST_URL="https://github.com/realme-atoll/RMX2170-manifest"
 DEVICE_MANIFEST_BRANCH="evox-bka"
 
-DEVICE="RMX2170"
-
-# Build variant: user, userdebug, or eng (passed via $1 or BUILD_VARIANT env var; defaults to userdebug)
+# Build Settings
 BUILD_VARIANT="${1:-${BUILD_VARIANT:-userdebug}}"
 BUILD_TARGET="evolution"
+LUNCH_TARGET="lineage_${DEVICE}-${BUILD_VARIANT}"
+WORK_DIR="/tmp/src/android"
 
-LUNCH_PRODUCT="lineage_${DEVICE}"
-LUNCH_TARGET="${LUNCH_PRODUCT}-${BUILD_VARIANT}"
+# Cloud Upload Destination
+UPLOAD_SUBDIR="${DEVICE}/EvolutionX/16"
 
-SOURCE_DIR="/tmp/src/android"
+# Helper Scripts URLs
+SCRIPT_BRANCH="${SCRIPT_BRANCH:-aosp-16}"
+CLEAN_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/clean.py"
+PATCH_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/patch.py"
+UPLOAD_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/upload.py"
 
-# ============================================================
-# DO NOT MODIFY BELOW THIS LINE
-# ============================================================
+# =============================================================================
+# SCRIPT LOGIC - DO NOT MODIFY BELOW THIS LINE
+# =============================================================================
 
+# Workspace Setup
+[ -d "$WORK_DIR" ] && cd "$WORK_DIR"
+echo "============================================================"
+echo " Building $ROM_NAME for $DEVICE ($BUILD_VARIANT)"
+echo " Working Directory: $(pwd)"
+echo "============================================================"
+
+# 1. Initialize ROM repo
+echo ""
 echo "=============================="
-echo " $ROM_NAME Build - $DEVICE ($BUILD_VARIANT)"
+echo " [1/6] Initializing $ROM_NAME ($ROM_MANIFEST_BRANCH)..."
 echo "=============================="
+repo init -u "$ROM_MANIFEST_URL" -b "$ROM_MANIFEST_BRANCH" --git-lfs --depth=1
 
-# Use SOURCE_DIR only if it exists, otherwise build in current workspace
-if [ -d "$SOURCE_DIR" ]; then
-    cd "$SOURCE_DIR"
-fi
-echo "Working directory: $(pwd)"
-
-# ============================================================
-# Initialize ROM repo
-# ============================================================
-
+# 2. Setup device manifest
+echo ""
 echo "=============================="
-echo " Initializing $ROM_NAME ($ROM_MANIFEST_BRANCH)..."
+echo " [2/6] Setting up device manifest..."
 echo "=============================="
-
-repo init \
-    -u "$ROM_MANIFEST_URL" \
-    -b "$ROM_MANIFEST_BRANCH" \
-    --git-lfs \
-    --depth=1
-
-echo "=============================="
-echo " Repo initialized"
-echo "=============================="
-
-# ============================================================
-# Setup device local manifest
-# ============================================================
-
-echo "=============================="
-echo " Setting up device manifest..."
-echo "=============================="
-
 rm -rf .repo/local_manifests
+git clone -b "$DEVICE_MANIFEST_BRANCH" "$DEVICE_MANIFEST_URL" .repo/local_manifests
 
-git clone \
-    -b "$DEVICE_MANIFEST_BRANCH" \
-    "$DEVICE_MANIFEST_URL" \
-    .repo/local_manifests
-
+# 3. Clean and sync source
+echo ""
 echo "=============================="
-echo " Device manifest ready"
+echo " [3/6] Syncing source and applying patches..."
 echo "=============================="
-
-# ============================================================
-# Sync source
-# ============================================================
-
-echo "=============================="
-echo " Syncing source..."
-echo "=============================="
-
-# Clean previous patches and dirty state
-curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/clean.py | python3
-
+curl -sLf "$CLEAN_SCRIPT_URL" | python3
 /opt/crave/resync.sh
+curl -sLf "$PATCH_SCRIPT_URL" | python3
 
+# 4. Setup build environment and lunch
+echo ""
 echo "=============================="
-echo " Sync complete"
+echo " [4/6] Setting up environment & lunching $LUNCH_TARGET..."
 echo "=============================="
-
-# ============================================================
-# Apply Upstream Fixes
-# ============================================================
-
-curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-16/patch.py | python3
-
-# ============================================================
-# Build environment
-# ============================================================
-
-echo "=============================="
-echo " Setting up build environment..."
-echo "=============================="
-
 source build/envsetup.sh
-
-echo "=============================="
-echo " Envsetup complete"
-echo "=============================="
-
-# ============================================================
-# Lunch target
-# ============================================================
-
-echo "=============================="
-echo " Running lunch $LUNCH_TARGET..."
-echo "=============================="
-
 lunch "$LUNCH_TARGET"
 
+# 5. Compile ROM
+echo ""
 echo "=============================="
-echo " Lunch complete"
+echo " [5/6] Building $ROM_NAME ($BUILD_TARGET)..."
 echo "=============================="
+m "$BUILD_TARGET" 2>&1 | tee /tmp/build_${DEVICE}.log
 
-# ============================================================
-# Build
-# ============================================================
+# 6. Extract cooked ROM package and upload
+echo ""
+echo "=============================="
+echo " [6/6] Uploading build artifacts..."
+echo "=============================="
+BUILD_ZIP=$(grep "Package Complete:" /tmp/build_${DEVICE}.log | awk '{print $NF}' | tail -n 1)
+BUILD_ZIP="${BUILD_ZIP:-$(ls -t "out/target/product/${DEVICE}/"*.zip 2>/dev/null | grep -v -E "target_files|symbols|ota_update" | head -n 1)}"
 
-echo "=============================="
-echo " Building $ROM_NAME ($BUILD_TARGET)..."
-echo "=============================="
+curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "$BUILD_ZIP"
 
-m "$BUILD_TARGET"
-
-echo "=============================="
-echo " Build complete successfully"
-echo "=============================="
+echo ""
+echo "============================================================"
+echo " Build process completed successfully!"
+echo "============================================================"
