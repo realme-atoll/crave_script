@@ -37,7 +37,7 @@ If you wish to upload compiled builds directly to SourceForge upon completion:
 
 ## 1. Multi-Target Batch Scripts
 
-### Build All ROMs (`evolution_all.sh`)
+### Build All Evolution X ROMs (`evolution_all.sh`)
 Sequentially builds Evolution X for Realme 7 Pro (`RMX2170`), Realme 6 Pro (`RMX2061`), and Realme 8 Pro (`RMX3081`) in a single Crave run. The script continues building subsequent devices even if one fails and provides a consolidated summary report at the end. Each device artifact is uploaded immediately upon completion:
 
 ```bash
@@ -46,6 +46,20 @@ crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atol
 
 # With Automatic SourceForge Upload:
 crave run --no-patch -- "SF_KEY='<base64_encoded_ssh_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_all.sh | bash"
+```
+
+### Build All LineageOS ROMs (`lineage_all.sh`)
+Sequentially builds LineageOS for Realme 7 Pro (`RMX2170`), Realme 6 Pro (`RMX2061`), and Realme 8 Pro (`RMX3081`):
+
+```bash
+crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lineage_all.sh | bash"
+```
+
+### Build All Lunaris ROMs (`lunaris_all.sh`)
+Sequentially builds Lunaris for Realme 7 Pro (`RMX2170`), Realme 6 Pro (`RMX2061`), and Realme 8 Pro (`RMX3081`):
+
+```bash
+crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
 ```
 
 ### Build All Recoveries (`recovery_all.sh`)
@@ -63,12 +77,22 @@ crave run --no-patch -- "SF_KEY='<base64_encoded_ssh_key>' curl -sLf https://raw
 
 ## 2. Standalone ROM Scripts
 
-### Realme 7 Pro (`RMX2170`)
-```bash
-# Standard Build:
-crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2170.sh | bash"
+Each ROM has dedicated standalone scripts for each device:
+- **Evolution X**: `evolution_rmx2170.sh`, `evolution_rmx2061.sh`, `evolution_rmx3081.sh`
+- **LineageOS**: `lineage_rmx2170.sh`, `lineage_rmx2061.sh`, `lineage_rmx3081.sh`
+- **Lunaris**: `lunaris_rmx2170.sh`, `lunaris_rmx2061.sh`, `lunaris_rmx3081.sh`
 
-# With SourceForge Upload:
+### Examples
+
+#### Realme 7 Pro (`RMX2170`)
+```bash
+# LineageOS:
+crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lineage_rmx2170.sh | bash"
+
+# Lunaris:
+crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_rmx2170.sh | bash"
+
+# Evolution X with SourceForge Upload:
 crave run --no-patch -- "SF_KEY='<base64_encoded_ssh_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2170.sh | bash"
 ```
 
