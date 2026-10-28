@@ -1,10 +1,10 @@
 #!/bin/bash
 # =============================================================================
-# Evolution X (Android 16) - Realme 7 Pro (RMX2170)
+# Evolution X (Android 17) - Realme 7 Pro (RMX2170)
 #
 # Examples:
-#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2170.sh | bash"
-#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2170.sh | bash"
+#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-17/evolution_rmx2170.sh | bash"
+#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-17/evolution_rmx2170.sh | bash"
 # =============================================================================
 
 set -e -o pipefail
@@ -17,9 +17,9 @@ set -e -o pipefail
 DEVICE="RMX2170"
 ROM_NAME="Evolution X"
 ROM_MANIFEST_URL="https://github.com/Evolution-X/manifest"
-ROM_MANIFEST_BRANCH="bka"
+ROM_MANIFEST_BRANCH="cnb"
 DEVICE_MANIFEST_URL="https://github.com/realme-atoll/RMX2170-manifest"
-DEVICE_MANIFEST_BRANCH="evox-bka"
+DEVICE_MANIFEST_BRANCH="${DEVICE_MANIFEST_BRANCH:-evox-bka}"
 
 # Build Settings
 BUILD_VARIANT="${1:-${BUILD_VARIANT:-userdebug}}"
@@ -28,10 +28,10 @@ LUNCH_TARGET="lineage_${DEVICE}-${BUILD_VARIANT}"
 WORK_DIR="/tmp/src/android"
 
 # Cloud Upload Destination
-UPLOAD_SUBDIR="${DEVICE}/EvolutionX/16"
+UPLOAD_SUBDIR="${DEVICE}/EvolutionX/17"
 
 # Helper Scripts URLs
-SCRIPT_BRANCH="${SCRIPT_BRANCH:-aosp-16}"
+SCRIPT_BRANCH="${SCRIPT_BRANCH:-aosp-17}"
 CLEAN_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/clean.py"
 PATCH_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/patch.py"
 UPLOAD_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/upload.py"
