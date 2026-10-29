@@ -22,26 +22,72 @@ SF_HOST = "frs.sourceforge.net"
 
 
 def get_sf_key() -> Path | None:
-    """Resolve SourceForge SSH private key from SF_KEY env variable or ~/.ssh/."""
+    """Resolve SourceForge SSH private key from ~/.ssh/, /tmp/, or SF_KEY env variable."""
+    sf_upload_env = os.environ.get("SF_UPLOAD", "").strip().lower()
+    sf_key_b64 = os.environ.get("SF_KEY", "").strip()
+
+    # Skip SourceForge if SF_UPLOAD is explicitly disabled (0) or if neither SF_UPLOAD=1 nor SF_KEY is set
+    if sf_upload_env in ("0", "false", "no", "disable", "disabled") or (sf_upload_env != "1" and not sf_key_b64):
+        print(">>> [INFO] SourceForge upload disabled (SF_UPLOAD not enabled). Skipping SourceForge.")
+        return None
+
+    sf_mode = os.environ.get("SF_MODE", "").strip().lower()
+
     ssh_dir = Path.home() / ".ssh"
     ssh_dir.mkdir(mode=0o700, exist_ok=True)
 
-    # Base64 encoded key passed via Crave run
+    # If legacy mode explicitly requested, prefer SF_KEY
+    if sf_mode == "legacy":
+        sf_key_b64 = os.environ.get("SF_KEY", "").strip()
+        if sf_key_b64:
+            key_file = ssh_dir / "sf_key"
+            try:
+                key_file.write_bytes(base64.b64decode(sf_key_b64))
+                key_file.chmod(0o600)
+                print(">>> [SF KEY] Using SF_KEY from environment (Legacy CLI)")
+                return key_file
+            except Exception as e:
+                print(f">>> [WARN] Failed to decode SF_KEY: {e}")
+
+    # 1. Devspace local SSH key candidates (Safe & Private: no key exposed on CLI or logs)
+    candidates = [
+        ssh_dir / "crave_sf",
+        Path("/tmp/crave_sf"),
+        Path("/tmp/.ssh/crave_sf"),
+        Path("/tmp/src/android/.ssh/crave_sf"),
+        ssh_dir / "id_ed25519",
+        ssh_dir / "id_rsa",
+    ]
+
+    for cand in candidates:
+        if cand.is_file() and cand.stat().st_size > 0:
+            dest_key = ssh_dir / "crave_sf"
+            if cand.resolve() != dest_key.resolve():
+                try:
+                    import shutil
+                    shutil.copy2(cand, dest_key)
+                except Exception as e:
+                    print(f">>> [WARN] Could not copy {cand} to ~/.ssh: {e}")
+                    dest_key = cand
+            try:
+                dest_key.chmod(0o600)
+            except Exception:
+                pass
+            print(f">>> [SF KEY] Using local SSH key in devspace: {dest_key}")
+            return dest_key
+
+    # 2. Base64 encoded key passed via Crave run (Fallback)
     sf_key_b64 = os.environ.get("SF_KEY", "").strip()
     if sf_key_b64:
         key_file = ssh_dir / "sf_key"
         try:
             key_file.write_bytes(base64.b64decode(sf_key_b64))
             key_file.chmod(0o600)
+            print(">>> [SF KEY] Using SF_KEY from environment (Fallback)")
             return key_file
         except Exception as e:
             print(f">>> [WARN] Failed to decode SF_KEY: {e}")
 
-    # Local SSH key files
-    for name in ["crave_sf", "id_ed25519", "id_rsa"]:
-        cand = ssh_dir / name
-        if cand.is_file():
-            return cand
     return None
 
 
@@ -122,7 +168,7 @@ def resolve_artifacts(raw_inputs: list[str]) -> list[Path]:
 def upload_sf(files: list[Path], remote_subdir: str, key_file: Path | None):
     """Uploads artifacts to SourceForge via rsync over SSH."""
     if not key_file:
-        print(">>> [INFO] SF_KEY not provided. Skipping SourceForge upload.")
+        print(">>> [INFO] SourceForge SSH key not found (~/.ssh/crave_sf, /tmp/crave_sf, or SF_KEY). Skipping SourceForge upload.")
         return
 
     dest = f"/home/frs/project/{SF_PROJECT}/{remote_subdir.strip('/')}/"
