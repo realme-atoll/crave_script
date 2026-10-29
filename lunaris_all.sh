@@ -8,7 +8,7 @@
 #   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
 # =============================================================================
 
-set -o pipefail
+# Note: set -e is deliberately omitted so a failure on one device does not abort remaining devices
 
 # =============================================================================
 # CONFIGURATION - MODIFY ONLY THIS SECTION
@@ -16,8 +16,8 @@ set -o pipefail
 
 # ROM Source Repository
 ROM_NAME="Lunaris"
-ROM_MANIFEST_URL="https://github.com/Lunaris-AOSP/android.git"
-ROM_MANIFEST_BRANCH="16"
+ROM_MANIFEST_URL="https://github.com/Lunaris-AOSP/android"
+ROM_MANIFEST_BRANCH="16.2"
 
 # Device Local Manifests (Configured independently per device)
 RMX2170_MANIFEST_URL="https://github.com/realme-atoll/RMX2170-manifest"
@@ -67,17 +67,18 @@ echo ""
 echo "=============================="
 echo " Initializing $ROM_NAME base repo..."
 echo "=============================="
-repo init -u "$ROM_MANIFEST_URL" -b "$ROM_MANIFEST_BRANCH" --git-lfs --depth=1 || true
+repo init -u https://github.com/Lunaris-AOSP/android -b 16.2 --git-lfs
 
 # Helper: Build single device
 build_device() {
-    local dev="$1"
+    local DEVICE="$1"
     local manifest_url="$2"
     local manifest_branch="$3"
+    local UPLOAD_SUBDIR="${DEVICE}/${UPLOAD_SUBDIR_SUFFIX}"
 
     echo ""
     echo "============================================================"
-    echo ">>> Starting Build for $dev ($BUILD_VARIANT)..."
+    echo ">>> Starting Build for $DEVICE ($BUILD_VARIANT)..."
     echo "============================================================"
 
     cd "$WORK_DIR"
@@ -85,7 +86,7 @@ build_device() {
     # 1. Setup device manifest
     echo ""
     echo "=============================="
-    echo " [$dev] Setting up device manifest..."
+    echo " [$DEVICE] Setting up device manifest..."
     echo "=============================="
     rm -rf .repo/local_manifests
     if git clone -b "$manifest_branch" "$manifest_url" .repo/local_manifests; then
@@ -93,46 +94,47 @@ build_device() {
         # 2. Clean and sync source
         echo ""
         echo "=============================="
-        echo " [$dev] Syncing source and applying patches..."
+        echo " [$DEVICE] Syncing source and applying patches..."
         echo "=============================="
-        curl -sLf "$CLEAN_SCRIPT_URL" | python3 || true
-        /opt/crave/resync.sh || true
-        curl -sLf "$PATCH_SCRIPT_URL" | python3 || true
+        curl -sLf "$CLEAN_SCRIPT_URL" | python3
+        /opt/crave/resync.sh
+        curl -sLf "$PATCH_SCRIPT_URL" | python3
 
         # 3. Setup build environment and lunch
         echo ""
         echo "=============================="
-        echo " [$dev] Setting up environment & lunching lineage_${dev}-${BUILD_VARIANT}..."
+        echo " [$DEVICE] Setting up environment & lunching..."
         echo "=============================="
+
         source build/envsetup.sh
-        lunch "lineage_${dev}-${BUILD_VARIANT}"
 
-        # 4. Compile ROM
-        echo ""
-        echo "=============================="
-        echo " [$dev] Building $ROM_NAME ($BUILD_TARGET)..."
-        echo "=============================="
-        if m "$BUILD_TARGET" 2>&1 | tee "/tmp/build_${dev}.log"; then
-            echo " [$dev] Build succeeded!"
-            SUCCESS_BUILDS+=("$dev")
-
-            # 5. Extract cooked package and upload
+        if lunch "lineage_${DEVICE}-bp4a-${BUILD_VARIANT}"; then
+            # 4. Compile ROM
             echo ""
             echo "=============================="
-            echo " [$dev] Uploading build artifacts..."
+            echo " [$DEVICE] Building $ROM_NAME ($BUILD_TARGET)..."
             echo "=============================="
-            local build_zip
-            build_zip=$(grep "Package Complete:" "/tmp/build_${dev}.log" | awk '{print $NF}' | tail -n 1)
-            build_zip="${build_zip:-$(ls -t "out/target/product/${dev}/"*.zip 2>/dev/null | grep -v -E "target_files|symbols|ota_update" | head -n 1)}"
-            
-            curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${dev}/${UPLOAD_SUBDIR_SUFFIX}" "$build_zip" || echo "Upload warning for $dev"
+            if m "$BUILD_TARGET"; then
+                echo " [$DEVICE] Build succeeded!"
+                SUCCESS_BUILDS+=("$DEVICE")
+
+                # 5. Upload build artifacts
+                echo ""
+                echo "=============================="
+                echo " [$DEVICE] Uploading build artifacts..."
+                echo "=============================="
+                curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${DEVICE}" "rom"
+            else
+                echo " [ERROR] Build failed for $DEVICE!"
+                FAILED_BUILDS+=("$DEVICE")
+            fi
         else
-            echo " [ERROR] Build failed for $dev!"
-            FAILED_BUILDS+=("$dev")
+            echo " [ERROR] Lunch failed for $DEVICE!"
+            FAILED_BUILDS+=("$DEVICE [lunch failed]")
         fi
     else
-        echo " [ERROR] Failed to clone device manifest for $dev!"
-        FAILED_BUILDS+=("$dev")
+        echo " [ERROR] Failed to clone device manifest for $DEVICE!"
+        FAILED_BUILDS+=("$DEVICE")
     fi
 }
 

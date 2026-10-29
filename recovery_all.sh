@@ -8,8 +8,7 @@
 #   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
 # =============================================================================
 
-# Enable pipefail so pipeline failure (m ... | tee) is accurately detected
-set -o pipefail
+# Note: set -e is deliberately omitted so a failure on one recovery does not abort the other
 
 # =============================================================================
 # CONFIGURATION
@@ -59,11 +58,11 @@ ensure_qcom_dependencies() {
     echo ">> Checking Qualcomm common recovery dependencies..."
     if [ ! -d "device/qcom/common" ]; then
         echo ">> Cloning device/qcom/common (android-12.1)..."
-        git clone --depth=1 https://github.com/TeamWin/android_device_qcom_common.git -b android-12.1 device/qcom/common || true
+        git clone --depth=1 https://github.com/TeamWin/android_device_qcom_common.git -b android-12.1 device/qcom/common
     fi
     if [ ! -d "device/qcom/twrp-common" ]; then
         echo ">> Cloning device/qcom/twrp-common (android-12.1)..."
-        git clone --depth=1 https://github.com/TeamWin/android_device_qcom_twrp-common.git -b android-12.1 device/qcom/twrp-common || true
+        git clone --depth=1 https://github.com/TeamWin/android_device_qcom_twrp-common.git -b android-12.1 device/qcom/twrp-common
     fi
 }
 
@@ -85,7 +84,7 @@ build_orangefox() {
     echo "=============================="
     echo " [OrangeFox] Initializing minimal manifest ($BASE_MANIFEST_BRANCH)..."
     echo "=============================="
-    repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH" --depth=1 || true
+    repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH"
 
     # Setup device manifest for OrangeFox
     echo "=============================="
@@ -101,7 +100,7 @@ build_orangefox() {
     echo "=============================="
     echo " [OrangeFox] Syncing source via crave resync..."
     echo "=============================="
-    /opt/crave/resync.sh || true
+    /opt/crave/resync.sh
 
     # Official OrangeFox source setup (fox_12.1)
     echo "=============================="
@@ -129,15 +128,15 @@ build_orangefox() {
         echo "=============================="
         echo " [OrangeFox] Compiling recovery image..."
         echo "=============================="
-        if m recoveryimage 2>&1 | tee "/tmp/build_OrangeFox.log"; then
+        if m recoveryimage; then
             echo ">>> [SUCCESS] OrangeFox Recovery build succeeded!"
             SUCCESS_BUILDS+=("OrangeFox")
 
             # Prepare branded artifacts and upload
             local out_dir="${WORK_DIR}/out/target/product/${DEVICE}"
             [ -f "$out_dir/recovery.img" ] && cp -v "$out_dir/recovery.img" "$out_dir/OrangeFox-R12.0-realme-${DEVICE}.img"
-            local cooked_files=($(ls -t "$out_dir"/OrangeFox*.zip "$out_dir"/OrangeFox*.img 2>/dev/null | head -n 2))
-            curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR_BASE}/OrangeFox" "${cooked_files[@]}" || true
+            local UPLOAD_SUBDIR="${UPLOAD_SUBDIR_BASE}/OrangeFox"
+            curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${DEVICE}" "recovery"
         else
             echo ">>> [FAILED] OrangeFox Recovery compilation failed!"
             FAILED_BUILDS+=("OrangeFox [compilation failed]")
@@ -166,7 +165,7 @@ build_twrp() {
     echo "=============================="
     echo " [TWRP] Initializing minimal manifest ($BASE_MANIFEST_BRANCH)..."
     echo "=============================="
-    repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH" --depth=1 || true
+    repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH"
 
     # Setup device manifest for TWRP
     echo "=============================="
@@ -185,7 +184,7 @@ build_twrp() {
     echo "=============================="
     echo " [TWRP] Syncing source via crave resync..."
     echo "=============================="
-    /opt/crave/resync.sh || true
+    /opt/crave/resync.sh
 
     # Qualcomm dependencies
     ensure_qcom_dependencies
@@ -205,15 +204,15 @@ build_twrp() {
         echo "=============================="
         echo " [TWRP] Compiling recovery image..."
         echo "=============================="
-        if m recoveryimage 2>&1 | tee "/tmp/build_TWRP.log"; then
+        if m recoveryimage; then
             echo ">>> [SUCCESS] TWRP Recovery build succeeded!"
             SUCCESS_BUILDS+=("TWRP")
 
             # Prepare branded artifacts and upload
             local out_dir="${WORK_DIR}/out/target/product/${DEVICE}"
             [ -f "$out_dir/recovery.img" ] && cp -v "$out_dir/recovery.img" "$out_dir/TWRP-realme-${DEVICE}.img"
-            local cooked_files=($(ls -t "$out_dir"/TWRP*.img "$out_dir"/TWRP*.zip "$out_dir"/twrp*.zip 2>/dev/null | head -n 2))
-            curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR_BASE}/TWRP" "${cooked_files[@]}" || true
+            local UPLOAD_SUBDIR="${UPLOAD_SUBDIR_BASE}/TWRP"
+            curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${DEVICE}" "recovery"
         else
             echo ">>> [FAILED] TWRP Recovery compilation failed!"
             FAILED_BUILDS+=("TWRP [compilation failed]")
@@ -225,8 +224,8 @@ build_twrp() {
 }
 
 # Execute builds
-build_orangefox || true
-build_twrp || true
+build_orangefox
+build_twrp
 
 # Final Summary Report
 echo ""

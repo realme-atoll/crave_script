@@ -8,7 +8,7 @@
 #   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/ofrp_sm7125.sh | bash"
 # =============================================================================
 
-set -e -o pipefail
+set -e
 
 # =============================================================================
 # CONFIGURATION
@@ -50,7 +50,7 @@ rm -rf .repo/local_manifests device/realme/"${DEVICE}"
 echo "=============================="
 echo " [1/5] Initializing $RECOVERY_NAME base repo ($BASE_MANIFEST_BRANCH)..."
 echo "=============================="
-repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH" --depth=1
+repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH"
 
 # 2. Setup device manifest
 echo "=============================="
@@ -74,10 +74,10 @@ git clone https://gitlab.com/OrangeFox/vendor/recovery.git -b main vendor/recove
 
 # Qualcomm common dependencies
 if [ ! -d "device/qcom/common" ]; then
-    git clone --depth=1 https://github.com/TeamWin/android_device_qcom_common.git -b android-12.1 device/qcom/common || true
+    git clone --depth=1 https://github.com/TeamWin/android_device_qcom_common.git -b android-12.1 device/qcom/common
 fi
 if [ ! -d "device/qcom/twrp-common" ]; then
-    git clone --depth=1 https://github.com/TeamWin/android_device_qcom_twrp-common.git -b android-12.1 device/qcom/twrp-common || true
+    git clone --depth=1 https://github.com/TeamWin/android_device_qcom_twrp-common.git -b android-12.1 device/qcom/twrp-common
 fi
 
 # 4. Setup build environment and lunch
@@ -95,16 +95,14 @@ lunch "$LUNCH_TARGET"
 echo "=============================="
 echo " [5/5] Compiling $RECOVERY_NAME ($BUILD_TARGET)..."
 echo "=============================="
-m "$BUILD_TARGET" 2>&1 | tee /tmp/build_${DEVICE}.log
+m "$BUILD_TARGET"
 
 # 6. Prepare branded image & upload
 echo "=============================="
 echo " Uploading recovery artifacts..."
 echo "=============================="
-OUT_DIR="out/target/product/${DEVICE}"
-[ -f "$OUT_DIR/recovery.img" ] && cp -v "$OUT_DIR/recovery.img" "$OUT_DIR/OrangeFox-R12.0-realme-${DEVICE}.img"
-COOKED_FILES=($(ls -t "$OUT_DIR"/OrangeFox*.zip "$OUT_DIR"/OrangeFox*.img 2>/dev/null | head -n 2))
-curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${COOKED_FILES[@]}"
+[ -f "out/target/product/${DEVICE}/recovery.img" ] && cp -v "out/target/product/${DEVICE}/recovery.img" "out/target/product/${DEVICE}/OrangeFox-R12.0-realme-${DEVICE}.img"
+curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${DEVICE}" "recovery"
 
 echo ""
 echo "============================================================"

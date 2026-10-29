@@ -7,7 +7,7 @@
 #   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx2061.sh | bash"
 # =============================================================================
 
-set -e -o pipefail
+set -e
 
 # =============================================================================
 # CONFIGURATION - MODIFY ONLY THIS SECTION
@@ -24,7 +24,7 @@ DEVICE_MANIFEST_BRANCH="evox-bka"
 # Build Settings
 BUILD_VARIANT="${1:-${BUILD_VARIANT:-userdebug}}"
 BUILD_TARGET="evolution"
-LUNCH_TARGET="lineage_${DEVICE}-${BUILD_VARIANT}"
+LUNCH_TARGET="lineage_${DEVICE}-bp4a-${BUILD_VARIANT}"
 WORK_DIR="/tmp/src/android"
 
 # Cloud Upload Destination
@@ -52,7 +52,7 @@ echo ""
 echo "=============================="
 echo " [1/6] Initializing $ROM_NAME ($ROM_MANIFEST_BRANCH)..."
 echo "=============================="
-repo init -u "$ROM_MANIFEST_URL" -b "$ROM_MANIFEST_BRANCH" --git-lfs --depth=1
+repo init -u https://github.com/Evolution-X/manifest -b bka --git-lfs
 
 # 2. Setup device manifest
 echo ""
@@ -76,6 +76,7 @@ echo ""
 echo "=============================="
 echo " [4/6] Setting up environment & lunching $LUNCH_TARGET..."
 echo "=============================="
+
 source build/envsetup.sh
 lunch "$LUNCH_TARGET"
 
@@ -84,17 +85,14 @@ echo ""
 echo "=============================="
 echo " [5/6] Building $ROM_NAME ($BUILD_TARGET)..."
 echo "=============================="
-m "$BUILD_TARGET" 2>&1 | tee /tmp/build_${DEVICE}.log
+m "$BUILD_TARGET"
 
-# 6. Extract cooked ROM package and upload
+# 6. Upload build artifacts
 echo ""
 echo "=============================="
 echo " [6/6] Uploading build artifacts..."
 echo "=============================="
-BUILD_ZIP=$(grep "Package Complete:" /tmp/build_${DEVICE}.log | awk '{print $NF}' | tail -n 1)
-BUILD_ZIP="${BUILD_ZIP:-$(ls -t "out/target/product/${DEVICE}/"*.zip 2>/dev/null | grep -v -E "target_files|symbols|ota_update" | head -n 1)}"
-
-curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "$BUILD_ZIP"
+curl -sLf "$UPLOAD_SCRIPT_URL" | python3 - "${UPLOAD_SUBDIR}" "${DEVICE}" "rom"
 
 echo ""
 echo "============================================================"
