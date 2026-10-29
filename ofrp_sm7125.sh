@@ -11,34 +11,29 @@
 set -e -o pipefail
 
 # =============================================================================
-# CONFIGURATION - MODIFY ONLY THIS SECTION
+# CONFIGURATION
 # =============================================================================
 
-# Device & Recovery Settings
 DEVICE="sm7125"
 RECOVERY_NAME="OrangeFox"
-MANIFEST_URL="https://gitlab.com/orangefox/manifest.git"
-MANIFEST_BRANCH="fox_12.1"
+BASE_MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"
+BASE_MANIFEST_BRANCH="twrp-12.1"
 DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
 DEVICE_MANIFEST_BRANCH="ofrp"
 
-# Build Settings
 BUILD_TARGET="recoveryimage"
-LUNCH_TARGET="tw_${DEVICE}-eng"
+LUNCH_TARGET="twrp_${DEVICE}-eng"
 WORK_DIR="/tmp/src/android"
 
-# Cloud Upload Destination
 UPLOAD_SUBDIR="Recovery/${DEVICE}/OrangeFox"
 
-# Helper Scripts URLs
 SCRIPT_BRANCH="${SCRIPT_BRANCH:-aosp-16}"
 UPLOAD_SCRIPT_URL="https://raw.githubusercontent.com/realme-atoll/crave_script/${SCRIPT_BRANCH}/upload.py"
 
 # =============================================================================
-# SCRIPT LOGIC - DO NOT MODIFY BELOW THIS LINE
+# SCRIPT LOGIC
 # =============================================================================
 
-# Workspace Setup (Uses Crave's stock cached directory)
 if [ -d "$WORK_DIR" ]; then
     cd "$WORK_DIR"
 fi
@@ -47,30 +42,45 @@ echo " Building $RECOVERY_NAME for $DEVICE"
 echo " Working Directory: $(pwd)"
 echo "============================================================"
 
+# Clean previous build tree to prevent disk space exhaustion
+rm -rf out/target/product/"${DEVICE}" out/soong
+rm -rf .repo/local_manifests device/realme/"${DEVICE}"
+
 # 1. Initialize repo
-echo ""
 echo "=============================="
-echo " [1/5] Initializing $RECOVERY_NAME repo ($MANIFEST_BRANCH)..."
+echo " [1/5] Initializing $RECOVERY_NAME base repo ($BASE_MANIFEST_BRANCH)..."
 echo "=============================="
-repo init -u "$MANIFEST_URL" -b "$MANIFEST_BRANCH" --depth=1
+repo init -u "$BASE_MANIFEST_URL" -b "$BASE_MANIFEST_BRANCH" --depth=1
 
 # 2. Setup device manifest
-echo ""
 echo "=============================="
-echo " [2/5] Setting up device manifest..."
+echo " [2/5] Setting up device manifest ($DEVICE_MANIFEST_BRANCH)..."
 echo "=============================="
-rm -rf .repo/local_manifests
 git clone -b "$DEVICE_MANIFEST_BRANCH" "$DEVICE_MANIFEST_URL" .repo/local_manifests
 
-# 3. Sync source
-echo ""
+# 3. Sync source via crave resync
 echo "=============================="
 echo " [3/5] Syncing source via crave resync..."
 echo "=============================="
 /opt/crave/resync.sh
 
+# Official OrangeFox source setup (fox_12.1)
+echo "=============================="
+echo " Fetching OrangeFox Recovery GUI & Vendor trees..."
+echo "=============================="
+rm -rf bootable/recovery vendor/recovery
+git clone https://gitlab.com/OrangeFox/bootable/Recovery.git -b fox_12.1 bootable/recovery
+git clone https://gitlab.com/OrangeFox/vendor/recovery.git -b main vendor/recovery
+
+# Qualcomm common dependencies
+if [ ! -d "device/qcom/common" ]; then
+    git clone --depth=1 https://github.com/TeamWin/android_device_qcom_common.git -b android-12.1 device/qcom/common || true
+fi
+if [ ! -d "device/qcom/twrp-common" ]; then
+    git clone --depth=1 https://github.com/TeamWin/android_device_qcom_twrp-common.git -b android-12.1 device/qcom/twrp-common || true
+fi
+
 # 4. Setup build environment and lunch
-echo ""
 echo "=============================="
 echo " [4/5] Setting up environment & lunching $LUNCH_TARGET..."
 echo "=============================="
@@ -82,14 +92,12 @@ source build/envsetup.sh
 lunch "$LUNCH_TARGET"
 
 # 5. Compile recovery
-echo ""
 echo "=============================="
 echo " [5/5] Compiling $RECOVERY_NAME ($BUILD_TARGET)..."
 echo "=============================="
 m "$BUILD_TARGET" 2>&1 | tee /tmp/build_${DEVICE}.log
 
 # 6. Prepare branded image & upload
-echo ""
 echo "=============================="
 echo " Uploading recovery artifacts..."
 echo "=============================="
