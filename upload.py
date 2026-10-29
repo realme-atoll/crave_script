@@ -5,7 +5,7 @@ Uploads cooked ROM/recovery builds and companions (.md5sum, .sha256sum, .json, .
 to SourceForge and temp.sh (direct links).
 
 Usage:
-  upload.py <remote_subdir> <file_or_dir> [extra_files...]
+  upload.py <remote_subdir> <device_or_path> [build_type] [extra_files...]
 """
 
 import os
@@ -102,65 +102,118 @@ def get_build_sort_key(file_path: Path) -> tuple:
     return (date_str, file_path.stat().st_mtime)
 
 
-def resolve_artifacts(raw_inputs: list[str]) -> list[Path]:
-    """
-    Resolves cooked artifacts and finds companion files (.md5sum, .sha256sum, .json, .txt)
-    by replacing or appending extensions. If a directory is passed, selects the latest
-    cooked build by date and modification time.
-    """
+def find_companions(artifact: Path) -> list[Path]:
+    """Finds companion files (.md5, .sha256, .json, .txt) using switch-case pattern matching."""
+    companions: list[Path] = []
+    parent, stem = artifact.parent, artifact.stem
+
+    for cand in sorted(parent.iterdir()):
+        if not cand.is_file() or cand.stat().st_size == 0 or cand == artifact:
+            continue
+        if not (cand.name.startswith(stem) or "changelog" in cand.name.lower()):
+            continue
+
+        match cand.suffix.lower():
+            case ".sha256sum" | ".sha256":
+                if cand not in companions:
+                    companions.append(cand)
+            case ".md5sum" | ".md5":
+                if cand not in companions:
+                    companions.append(cand)
+            case ".json":
+                if cand not in companions:
+                    companions.append(cand)
+            case ".txt" if "changelog" in cand.name.lower() or cand.stem == stem:
+                if cand not in companions:
+                    companions.append(cand)
+            case _:
+                pass
+
+    return companions
+
+
+def resolve_target_path(item: str) -> Path:
+    """Resolves an input item to a Path, checking direct path, device codename, or out/target/product."""
+    p = Path(item)
+    if p.exists():
+        return p
+
+    # Check if item is a device codename under out/target/product/
+    base = Path("out/target/product")
+    for cand in [base / item, base / item.lower(), base / item.upper()]:
+        if cand.is_dir():
+            return cand
+
+    return p
+
+
+def discover_candidates(search_dir: Path, build_type: str) -> list[Path]:
+    """Discovers target artifacts in product directory based on build type using pattern matching."""
+    candidates: list[Path] = []
+
+    match build_type.lower():
+        case "recovery":
+            # 1. Recovery installer ZIPs if present (OrangeFox, TWRP, recovery)
+            zips = [
+                z for z in search_dir.glob("*.zip")
+                if any(k in z.name.lower() for k in ["orangefox", "twrp", "recovery"])
+                and not any(ign in z.name.lower() for ign in ["target_files", "symbols", "ota_update"])
+            ]
+            if zips:
+                zips.sort(key=get_build_sort_key, reverse=True)
+                candidates.append(zips[0])
+
+            # 2. Recovery images (prefer branded OrangeFox/TWRP, fallback to recovery.img)
+            imgs = [
+                i for i in search_dir.glob("*.img")
+                if any(k in i.name.lower() for k in ["orangefox", "twrp", "recovery"])
+            ]
+            if imgs:
+                branded = [i for i in imgs if any(k in i.name.lower() for k in ["orangefox", "twrp"])]
+                chosen_imgs = branded if branded else imgs
+                chosen_imgs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                candidates.append(chosen_imgs[0])
+
+        case "rom" | _:
+            # Latest cooked ROM ZIP (exclude standalone recovery zips)
+            zips = [
+                z for z in search_dir.glob("*.zip")
+                if not any(ign in z.name.lower() for ign in ["target_files", "symbols", "ota_update", "orangefox", "twrp"])
+            ]
+            if zips:
+                zips.sort(key=get_build_sort_key, reverse=True)
+                candidates.append(zips[0])
+
+    return candidates
+
+
+def resolve_artifacts(raw_inputs: list[str], build_type: str = "rom") -> list[Path]:
+    """Resolves cooked artifacts and companions from device names, directories, or direct file paths."""
     targets: list[Path] = []
 
     for item in raw_inputs:
         if not item:
             continue
-        p = Path(item)
 
-        # Fallback if directory was passed instead of file: pick latest cooked build
+        p = resolve_target_path(item)
+
+        # If a directory (or resolved device dir), discover cooked artifacts
         if p.is_dir():
-            zips = [
-                z for z in p.glob("*.zip")
-                if not any(ign in z.name.lower() for ign in ["target_files", "symbols", "ota_update"])
-            ]
-            if zips:
-                zips.sort(key=get_build_sort_key, reverse=True)
-                p = zips[0]
-            else:
-                imgs = [i for i in p.glob("*.img") if "boot" not in i.name.lower()]
-                if imgs:
-                    imgs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-                    p = imgs[0]
+            for cand in discover_candidates(p, build_type):
+                if cand not in targets:
+                    targets.append(cand)
+                    for comp in find_companions(cand):
+                        if comp not in targets:
+                            targets.append(comp)
+            continue
 
         if not p.is_file() or p.stat().st_size == 0 or p in targets:
             continue
 
         targets.append(p)
-        parent, stem = p.parent, p.stem
-
-        # Check for MD5 checksum (.md5sum or .md5)
-        for ext in [".md5sum", ".md5"]:
-            for cand in [parent / f"{p.name}{ext}", parent / f"{stem}{ext}"]:
-                if cand.is_file() and cand not in targets:
-                    targets.append(cand)
-                    break
-
-        # Check for SHA256 checksum (.sha256sum or .sha256)
-        for ext in [".sha256sum", ".sha256"]:
-            for cand in [parent / f"{p.name}{ext}", parent / f"{stem}{ext}"]:
-                if cand.is_file() and cand not in targets:
-                    targets.append(cand)
-                    break
-
-        # Check for OTA updater metadata (.json)
-        for cand in [parent / f"{stem}.json", *parent.glob(f"{stem}*.json")]:
-            if cand.is_file() and cand not in targets:
-                targets.append(cand)
-                break
-
-        # Check for Changelog (.txt)
-        for cand in [parent / f"{stem}.txt", *parent.glob("*changelog*.txt"), *parent.glob("*Changelog*.txt")]:
-            if cand.is_file() and cand not in targets:
-                targets.append(cand)
-                break
+        for comp in find_companions(p):
+            if comp not in targets:
+                targets.append(comp)
 
     return targets
 
@@ -217,15 +270,25 @@ def upload_temp(files: list[Path]):
 
 def main():
     if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <remote_subdir> <file_or_dir> [extra_files...]")
+        print(f"Usage: {sys.argv[0]} <remote_subdir> <device_or_path> [build_type] [extra_files...]")
         sys.exit(1)
 
     remote_subdir = sys.argv[1].strip("/")
-    raw_inputs = sys.argv[2:]
+    target_arg = sys.argv[2]
 
-    files = resolve_artifacts(raw_inputs)
+    # Optional explicit build_type ('rom' or 'recovery')
+    explicit_type = ""
+    extra_start = 3
+    if len(sys.argv) > 3 and sys.argv[3].lower() in ["rom", "recovery"]:
+        explicit_type = sys.argv[3].lower()
+        extra_start = 4
+
+    build_type = explicit_type or ("recovery" if any(k in remote_subdir.lower() for k in ["recovery", "twrp", "orangefox", "ofrp"]) else "rom")
+    raw_inputs = [target_arg] + sys.argv[extra_start:]
+
+    files = resolve_artifacts(raw_inputs, build_type=build_type)
     if not files:
-        print(">>> [ERROR] No valid build artifacts found to upload.")
+        print(f">>> [ERROR] No valid build artifacts found for target '{target_arg}' (build_type: {build_type}).")
         sys.exit(1)
 
     print(f"\nArtifacts to upload ({len(files)}):")

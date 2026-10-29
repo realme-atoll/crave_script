@@ -2,17 +2,22 @@
 
 This branch contains automated Crave build scripts for **Android 17**.
 
-## Supported ROM & Target
-- **ROM**: Evolution X (Android 17, branch `cnb`)
-- **Device**: Realme 7 Pro (`RMX2170`)
+## Supported ROMs & Targets
+- **Evolution X**: Android 17 (branch `cnb`) — Realme 7 Pro (`RMX2170`)
+- **LineageOS**: Android 17 (branch `lineage-24.0`) — Realme 7 Pro (`RMX2170`)
 
 ---
 
 ## Usage
 
-### Standard Build
+### Evolution X (Android 17)
 ```bash
 crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-17/evolution_rmx2170.sh | bash"
+```
+
+### LineageOS (Android 17)
+```bash
+crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/aosp-17/lineage_rmx2170.sh | bash"
 ```
 
 ### With SourceForge Direct Upload
