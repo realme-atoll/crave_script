@@ -22,88 +22,53 @@ SF_HOST = "frs.sourceforge.net"
 
 
 def get_sf_key() -> Path | None:
-    """Resolve SourceForge SSH private key from ~/.ssh/, /tmp/, or SF_KEY env variable."""
-    sf_upload_env = os.environ.get("SF_UPLOAD", "").strip().lower()
+    """
+    Resolve SourceForge SSH private key:
+    1. If SF_KEY is provided: decode base64 key and use it (takes precedence).
+    2. Else if SF_UPLOAD is truthy: look for ~/.ssh/crave_sf in devspace.
+    3. Otherwise: skip SourceForge upload.
+    """
     sf_key_b64 = os.environ.get("SF_KEY", "").strip()
-
-    # Skip SourceForge if SF_UPLOAD is explicitly disabled (0) or if neither SF_UPLOAD=1 nor SF_KEY is set
-    if sf_upload_env in ("0", "false", "no", "disable", "disabled") or (sf_upload_env != "1" and not sf_key_b64):
-        print(">>> [INFO] SourceForge upload disabled (SF_UPLOAD not enabled). Skipping SourceForge.")
-        return None
-
-    sf_mode = os.environ.get("SF_MODE", "").strip().lower()
+    sf_upload = os.environ.get("SF_UPLOAD", "").strip().lower()
 
     ssh_dir = Path.home() / ".ssh"
     ssh_dir.mkdir(mode=0o700, exist_ok=True)
 
-    # If legacy mode explicitly requested, prefer SF_KEY
-    if sf_mode == "legacy":
-        sf_key_b64 = os.environ.get("SF_KEY", "").strip()
-        if sf_key_b64:
-            key_file = ssh_dir / "sf_key"
-            try:
-                key_file.write_bytes(base64.b64decode(sf_key_b64))
-                key_file.chmod(0o600)
-                print(">>> [SF KEY] Using SF_KEY from environment (Legacy CLI)")
-                return key_file
-            except Exception as e:
-                print(f">>> [WARN] Failed to decode SF_KEY: {e}")
-
-    # 1. Devspace local SSH key candidates (Safe & Private: no key exposed on CLI or logs)
-    candidates = [
-        ssh_dir / "crave_sf",
-        Path("/tmp/crave_sf"),
-        Path("/tmp/.ssh/crave_sf"),
-        Path("/tmp/src/android/.ssh/crave_sf"),
-        ssh_dir / "id_ed25519",
-        ssh_dir / "id_rsa",
-    ]
-
-    for cand in candidates:
-        if cand.is_file() and cand.stat().st_size > 0:
-            dest_key = ssh_dir / "crave_sf"
-            if cand.resolve() != dest_key.resolve():
-                try:
-                    import shutil
-                    shutil.copy2(cand, dest_key)
-                except Exception as e:
-                    print(f">>> [WARN] Could not copy {cand} to ~/.ssh: {e}")
-                    dest_key = cand
-            try:
-                dest_key.chmod(0o600)
-            except Exception:
-                pass
-            print(f">>> [SF KEY] Using local SSH key in devspace: {dest_key}")
-            return dest_key
-
-    # 2. Base64 encoded key passed via Crave run (Fallback)
-    sf_key_b64 = os.environ.get("SF_KEY", "").strip()
+    # 1. User provided base64 SF_KEY -> decode and use it
     if sf_key_b64:
         key_file = ssh_dir / "sf_key"
         try:
             key_file.write_bytes(base64.b64decode(sf_key_b64))
             key_file.chmod(0o600)
-            print(">>> [SF KEY] Using SF_KEY from environment (Fallback)")
+            print(">>> [SF KEY] Using SF_KEY from environment")
             return key_file
         except Exception as e:
-            print(f">>> [WARN] Failed to decode SF_KEY: {e}")
+            print(f">>> [WARN] Failed to decode base64 SF_KEY: {e}")
+            return None
 
+    # 2. User passed SF_UPLOAD=true/1 -> check ~/.ssh/crave_sf in devspace
+    if sf_upload in ("1", "true", "yes", "on"):
+        devspace_key = ssh_dir / "crave_sf"
+        if devspace_key.is_file() and devspace_key.stat().st_size > 0:
+            devspace_key.chmod(0o600)
+            print(f">>> [SF KEY] Using devspace key: {devspace_key}")
+            return devspace_key
+        print(">>> [WARN] SF_UPLOAD is enabled, but ~/.ssh/crave_sf was not found in devspace. Skipping SourceForge.")
+        return None
+
+    # Neither provided
     return None
 
 
 def get_build_sort_key(file_path: Path) -> tuple:
-    """
-    Sort key to identify the latest build:
-    1. 8-digit date in filename YYYYMMDD (e.g. 20261028 > 20261025 > 20261020)
-    2. File modification time (st_mtime) for builds with same date
-    """
+    """Sort key: 8-digit date (YYYYMMDD) then file modification time."""
     date_match = re.search(r'(20\d{6})', file_path.name)
     date_str = date_match.group(1) if date_match else "00000000"
     return (date_str, file_path.stat().st_mtime)
 
 
 def find_companions(artifact: Path) -> list[Path]:
-    """Finds companion files (.md5, .sha256, .json, .txt) using switch-case pattern matching."""
+    """Find companion checksum/manifest/changelog files (.sha256sum, .md5sum, .json, .txt)."""
     companions: list[Path] = []
     parent, stem = artifact.parent, artifact.stem
 
@@ -114,13 +79,7 @@ def find_companions(artifact: Path) -> list[Path]:
             continue
 
         match cand.suffix.lower():
-            case ".sha256sum" | ".sha256":
-                if cand not in companions:
-                    companions.append(cand)
-            case ".md5sum" | ".md5":
-                if cand not in companions:
-                    companions.append(cand)
-            case ".json":
+            case ".sha256sum" | ".sha256" | ".md5sum" | ".md5" | ".json":
                 if cand not in companions:
                     companions.append(cand)
             case ".txt" if "changelog" in cand.name.lower() or cand.stem == stem:
@@ -133,12 +92,11 @@ def find_companions(artifact: Path) -> list[Path]:
 
 
 def resolve_target_path(item: str) -> Path:
-    """Resolves an input item to a Path, checking direct path, device codename, or out/target/product."""
+    """Resolves an input item to a Path, checking direct path or out/target/product."""
     p = Path(item)
     if p.exists():
         return p
 
-    # Check if item is a device codename under out/target/product/
     base = Path("out/target/product")
     for cand in [base / item, base / item.lower(), base / item.upper()]:
         if cand.is_dir():
@@ -148,12 +106,12 @@ def resolve_target_path(item: str) -> Path:
 
 
 def discover_candidates(search_dir: Path, build_type: str) -> list[Path]:
-    """Discovers target artifacts in product directory based on build type using pattern matching."""
+    """Discovers target artifacts in product directory based on build type."""
     candidates: list[Path] = []
 
     match build_type.lower():
         case "recovery":
-            # 1. Recovery installer ZIPs if present (OrangeFox, TWRP, recovery)
+            # 1. Recovery installer ZIPs if present
             zips = [
                 z for z in search_dir.glob("*.zip")
                 if any(k in z.name.lower() for k in ["orangefox", "twrp", "recovery"])
@@ -163,7 +121,7 @@ def discover_candidates(search_dir: Path, build_type: str) -> list[Path]:
                 zips.sort(key=get_build_sort_key, reverse=True)
                 candidates.append(zips[0])
 
-            # 2. Recovery images (prefer branded OrangeFox/TWRP, fallback to recovery.img)
+            # 2. Recovery images
             imgs = [
                 i for i in search_dir.glob("*.img")
                 if any(k in i.name.lower() for k in ["orangefox", "twrp", "recovery"])
@@ -197,7 +155,6 @@ def resolve_artifacts(raw_inputs: list[str], build_type: str = "rom") -> list[Pa
 
         p = resolve_target_path(item)
 
-        # If a directory (or resolved device dir), discover cooked artifacts
         if p.is_dir():
             for cand in discover_candidates(p, build_type):
                 if cand not in targets:
@@ -221,7 +178,7 @@ def resolve_artifacts(raw_inputs: list[str], build_type: str = "rom") -> list[Pa
 def upload_sf(files: list[Path], remote_subdir: str, key_file: Path | None):
     """Uploads artifacts to SourceForge via rsync over SSH."""
     if not key_file:
-        print(">>> [INFO] SourceForge SSH key not found (~/.ssh/crave_sf, /tmp/crave_sf, or SF_KEY). Skipping SourceForge upload.")
+        print(">>> [INFO] SourceForge SSH key not available. Skipping SourceForge upload.")
         return
 
     dest = f"/home/frs/project/{SF_PROJECT}/{remote_subdir.strip('/')}/"
