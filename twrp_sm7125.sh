@@ -4,8 +4,12 @@
 # Unified: Realme 6 Pro (RMX2061), Realme 7 Pro (RMX2170), Realme 8 Pro (RMX3081)
 #
 # Examples:
-#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
-#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
+#   Standard Build:
+#     crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
+#   With SourceForge Upload (Devspace Key /tmp/crave_sf):
+#     crave run --no-patch -- "export SF_UPLOAD=true; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
+#   With SourceForge Upload (Base64 SF_KEY):
+#     crave run --no-patch -- "export SF_KEY='<b64_key>'; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/twrp_sm7125.sh | bash"
 # =============================================================================
 
 set -e
@@ -22,7 +26,8 @@ DEVICE_MANIFEST_URL="https://github.com/realme-atoll/recovery-manifest"
 DEVICE_MANIFEST_BRANCH="twrp"
 
 BUILD_TARGET="recoveryimage"
-LUNCH_TARGET="twrp_${DEVICE}-eng"
+BUILD_VARIANT="${BUILD_VARIANT:-eng}"
+LUNCH_TARGET="twrp_${DEVICE}-${BUILD_VARIANT}"
 WORK_DIR="/tmp/src/android"
 
 UPLOAD_SUBDIR="Recovery/${DEVICE}/TWRP"

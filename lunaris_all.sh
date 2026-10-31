@@ -4,8 +4,12 @@
 # Devices: Realme 7 Pro (RMX2170), Realme 6 Pro (RMX2061), Realme 8 Pro (RMX3081)
 #
 # Examples:
-#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
-#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
+#   Standard Build:
+#     crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
+#   With SourceForge Upload (Devspace Key /tmp/crave_sf):
+#     crave run --no-patch -- "export SF_UPLOAD=true; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
+#   With SourceForge Upload (Base64 SF_KEY):
+#     crave run --no-patch -- "export SF_KEY='<b64_key>'; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/lunaris_all.sh | bash"
 # =============================================================================
 
 # Note: set -e is deliberately omitted so a failure on one device does not abort remaining devices

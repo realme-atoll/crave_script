@@ -4,8 +4,12 @@
 # Recoveries: OrangeFox Recovery Project & TeamWin Recovery Project (TWRP)
 #
 # Examples:
-#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
-#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
+#   Standard Build:
+#     crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
+#   With SourceForge Upload (Devspace Key /tmp/crave_sf):
+#     crave run --no-patch -- "export SF_UPLOAD=true; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
+#   With SourceForge Upload (Base64 SF_KEY):
+#     crave run --no-patch -- "export SF_KEY='<b64_key>'; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/recovery_all.sh | bash"
 # =============================================================================
 
 # Note: set -e is deliberately omitted so a failure on one recovery does not abort the other
@@ -15,7 +19,8 @@
 # =============================================================================
 
 DEVICE="sm7125"
-LUNCH_TARGET="twrp_${DEVICE}-eng"
+BUILD_VARIANT="${BUILD_VARIANT:-eng}"
+LUNCH_TARGET="twrp_${DEVICE}-${BUILD_VARIANT}"
 
 # Base Minimal TWRP Manifest for Android 12.1 (shared base for TWRP 12.1 & OrangeFox 12.1)
 BASE_MANIFEST_URL="https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git"

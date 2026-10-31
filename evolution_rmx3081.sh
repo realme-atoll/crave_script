@@ -3,8 +3,12 @@
 # Evolution X (Android 16) - Realme 8 Pro (RMX3081)
 #
 # Examples:
-#   crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx3081.sh | bash"
-#   crave run --no-patch -- "SF_KEY='<b64_key>' curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx3081.sh | bash"
+#   Standard Build:
+#     crave run --no-patch -- "curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx3081.sh | bash"
+#   With SourceForge Upload (Devspace Key /tmp/crave_sf):
+#     crave run --no-patch -- "export SF_UPLOAD=true; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx3081.sh | bash"
+#   With SourceForge Upload (Base64 SF_KEY):
+#     crave run --no-patch -- "export SF_KEY='<b64_key>'; curl -sLf https://raw.githubusercontent.com/realme-atoll/crave_script/<branch>/evolution_rmx3081.sh | bash"
 # =============================================================================
 
 set -e
