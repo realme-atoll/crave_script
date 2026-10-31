@@ -11,6 +11,7 @@ Usage:
 import os
 import sys
 import re
+import json
 import base64
 import subprocess
 from pathlib import Path
@@ -25,18 +26,15 @@ def get_sf_key() -> Path | None:
     """
     Resolve SourceForge SSH private key:
     1. If SF_KEY is provided: decode base64 key and use it (takes precedence).
-    2. Else if SF_UPLOAD is truthy: look for ~/.ssh/crave_sf in devspace.
+    2. Else if SF_UPLOAD is truthy: look for /tmp/crave_sf in devspace.
     3. Otherwise: skip SourceForge upload.
     """
     sf_key_b64 = os.environ.get("SF_KEY", "").strip()
     sf_upload = os.environ.get("SF_UPLOAD", "").strip().lower()
 
-    ssh_dir = Path.home() / ".ssh"
-    ssh_dir.mkdir(mode=0o700, exist_ok=True)
-
     # 1. User provided base64 SF_KEY -> decode and use it
     if sf_key_b64:
-        key_file = ssh_dir / "sf_key"
+        key_file = Path("/tmp/sf_key")
         try:
             key_file.write_bytes(base64.b64decode(sf_key_b64))
             key_file.chmod(0o600)
@@ -46,14 +44,18 @@ def get_sf_key() -> Path | None:
             print(f">>> [WARN] Failed to decode base64 SF_KEY: {e}")
             return None
 
-    # 2. User passed SF_UPLOAD=true/1 -> check ~/.ssh/crave_sf in devspace
+    # 2. User passed SF_UPLOAD=true/1 -> check single folder location: /tmp/crave_sf
     if sf_upload in ("1", "true", "yes", "on"):
-        devspace_key = ssh_dir / "crave_sf"
+        devspace_key = Path("/tmp/crave_sf")
         if devspace_key.is_file() and devspace_key.stat().st_size > 0:
-            devspace_key.chmod(0o600)
+            try:
+                devspace_key.chmod(0o600)
+            except Exception:
+                pass
             print(f">>> [SF KEY] Using devspace key: {devspace_key}")
             return devspace_key
-        print(">>> [WARN] SF_UPLOAD is enabled, but ~/.ssh/crave_sf was not found in devspace. Skipping SourceForge.")
+
+        print(">>> [WARN] SF_UPLOAD is enabled, but crave_sf key was not found in devspace (/tmp/crave_sf). Skipping SourceForge.")
         return None
 
     # Neither provided
@@ -210,19 +212,47 @@ def upload_sf(files: list[Path], remote_subdir: str, key_file: Path | None):
 
 
 def upload_temp(files: list[Path]):
-    """Uploads artifacts to temp.sh for instant direct download link."""
-    print("\nGenerating direct download links (temp.sh)...")
+    """Uploads artifacts for instant direct download link (temp.sh with gofile.io fallback)."""
+    print("\nGenerating direct download links...")
     for f in files:
+        link = None
+
+        # 1. Attempt temp.sh
         try:
             res = subprocess.run(
-                ["curl", "-s", "-F", f"file=@{f}", "https://temp.sh/upload"],
+                ["curl", "-s", "-w", "\n%{http_code}", "-F", f"file=@{f}", "https://temp.sh/upload"],
                 capture_output=True,
                 text=True,
                 timeout=180,
             )
-            print(f"Direct link ({f.name}): {res.stdout.strip()}")
-        except Exception as e:
-            print(f">>> [WARN] temp.sh upload failed for {f.name}: {e}")
+            parts = res.stdout.strip().split("\n")
+            body = parts[0].strip() if parts else ""
+            status = parts[-1].strip() if len(parts) > 1 else ""
+            if status == "200" and body.startswith("http") and "<html" not in body.lower():
+                link = body
+                print(f"Direct link ({f.name}) [temp.sh]: {link}")
+        except Exception:
+            pass
+
+        # 2. Fallback to gofile.io
+        if not link:
+            try:
+                res = subprocess.run(
+                    ["curl", "-s", "-X", "POST", "https://upload.gofile.io/uploadfile", "-F", f"file=@{f}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                data = json.loads(res.stdout)
+                if data.get("status") == "ok":
+                    link = data.get("data", {}).get("downloadPage")
+                    if link:
+                        print(f"Direct link ({f.name}) [gofile.io]: {link}")
+            except Exception as e:
+                pass
+
+        if not link:
+            print(f">>> [WARN] Direct download link generation failed for {f.name} (temp.sh and gofile unavailable).")
 
 
 def main():
